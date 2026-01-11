@@ -1,0 +1,61 @@
+import { Pickup } from "../types"
+
+export const AVERAGE_HANDLING_TIME = 3 // minutes per parcel
+
+export const dummyPickups: Pickup[] = [
+  {
+    id: "P-001",
+    tracking_id: "PK-A12F8D",
+    customer_name: "Ahmad Ali",
+    pickup_time: "2026-01-03T10:00:00",
+    status: "booked",
+    queue_number: 1,
+    phone: "+6012-345-6789",
+    email: "ahmad.ali@example.com",
+    parcel_count: 2,
+  },
+  {
+    id: "P-002",
+    tracking_id: "PK-B39X2Q",
+    customer_name: "Siti Aisyah",
+    pickup_time: "2026-01-03T10:05:00",
+    status: "checked_in",
+    queue_number: 2,
+    phone: "+6013-456-7890",
+    email: "siti.aisyah@example.com",
+    parcel_count: 1,
+  },
+  {
+    id: "P-003",
+    tracking_id: "PK-C88L9Z",
+    customer_name: "Raj Kumar",
+    pickup_time: "2026-01-03T10:10:00",
+    status: "checked_in",
+    queue_number: 3,
+    phone: "+6014-567-8901",
+    email: "raj.kumar@example.com",
+    parcel_count: 3,
+  },
+  {
+    id: "P-004",
+    tracking_id: "PK-D71M4E",
+    customer_name: "Nur Huda",
+    pickup_time: "2026-01-03T10:15:00",
+    status: "booked",
+    queue_number: 4,
+    phone: "+6015-678-9012",
+    email: "nur.huda@example.com",
+    parcel_count: 1,
+  },
+  {
+    id: "P-005",
+    tracking_id: "PK-E92N5F",
+    customer_name: "Lee Wei",
+    pickup_time: "2026-01-03T10:20:00",
+    status: "ready",
+    queue_number: 5,
+    phone: "+6016-789-0123",
+    email: "lee.wei@example.com",
+    parcel_count: 2,
+  },
+]

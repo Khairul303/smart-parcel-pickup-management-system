@@ -4,9 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const stats = [
   { title: "Total Parcels", value: "1,247", change: "+12%", color: "bg-blue-500" },
-  { title: "Delivered Today", value: "89", change: "+8%", color: "bg-green-500" },
-  { title: "In Transit", value: "156", change: "+5%", color: "bg-amber-500" },
-  { title: "Pending", value: "23", change: "-2%", color: "bg-red-500" },
+  { title: "Not Collected", value: "89", change: "+8%", color: "bg-green-500" },
+  { title: "Ready for Pickup", value: "156", change: "+5%", color: "bg-amber-500" },
+  { title: "Collected", value: "23", change: "-2%", color: "bg-red-500" },
 ];
 
 export function StatsSection() {

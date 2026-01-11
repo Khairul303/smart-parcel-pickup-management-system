@@ -10,6 +10,7 @@ import {
   Users,
   BarChart3,
   ClipboardList,
+  LogOut
 } from "lucide-react"
 import {
   Sidebar,
@@ -24,6 +25,23 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+const handleLogout = () => {
+  // Optional: clear stored session data
+  localStorage.removeItem("user")
+  localStorage.removeItem("token")
+
+  // Redirect to login page
+  window.location.href = "/login"
+}
+
+
 const menuItems = [
   {
     title: "Dashboard",
@@ -37,14 +55,14 @@ const menuItems = [
     url: "/parcel-management",
   },
   {
-    title: "Queue Management",
+    title: "Pickup Management",
     icon: ListChecks,
     url: "/queue-management",
   },
   {
-    title: "Pickup Requests",
+    title: "Pickup Records",
     icon: ClipboardList,
-    url: "/pickup-request",
+    url: "/pickup-records",
   },
   {
     title: "Report Analytics",
@@ -105,26 +123,41 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <a 
-                href="/profile" 
-                className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
-                  <User className="h-4.5 w-4.5 text-gray-600 dark:text-gray-400" />
-                </div>
-                <div className="flex-1 space-y-0.5">
-                  <p className="text-sm font-medium">Admin User</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">View Profile</p>
-                </div>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+<SidebarFooter className="p-4 border-t">
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <button className="w-full">
+        <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-100 transition-all">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200">
+            <User className="h-4 w-4 text-gray-600" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-medium">John Smith</p>
+            <p className="text-xs text-gray-500">Account</p>
+          </div>
+        </div>
+      </button>
+    </DropdownMenuTrigger>
+
+    <DropdownMenuContent align="start" className="w-48">
+      <DropdownMenuItem asChild>
+        <a href="/customer-dashboard/profile">
+          <User className="mr-2 h-4 w-4" />
+          View Profile
+        </a>
+      </DropdownMenuItem>
+
+<DropdownMenuItem
+  onClick={handleLogout}
+  className="text-red-600 focus:text-red-600"
+>
+  <LogOut className="mr-2 h-4 w-4" />
+  Sign Out
+</DropdownMenuItem>
+
+    </DropdownMenuContent>
+  </DropdownMenu>
+</SidebarFooter>
       
       <SidebarRail />
     </Sidebar>
