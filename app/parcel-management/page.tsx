@@ -45,6 +45,7 @@ export default function ParcelManagementPage() {
     receiver: "",
     senderPhone: "",
     receiverPhone: "",
+    receiverEmail: "", // ✅ ADD
     senderAddress: "",
     receiverAddress: "",
     weight: "",
@@ -52,6 +53,7 @@ export default function ParcelManagementPage() {
     priority: "Normal",
     status: "pending",
   });
+
 
   /* 🔄 LOAD PARCELS */
   useEffect(() => {
@@ -72,6 +74,44 @@ export default function ParcelManagementPage() {
     };
   }, []);
 
+  useEffect(() => {
+  const channel = supabase
+    .channel("realtime-parcels")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "parcels",
+      },
+      (payload) => {
+        if (payload.eventType === "INSERT") {
+          setParcels((prev) => [payload.new as Parcel, ...prev]);
+        }
+
+        if (payload.eventType === "UPDATE") {
+          setParcels((prev) =>
+            prev.map((p) =>
+              p.id === payload.new.id ? (payload.new as Parcel) : p
+            )
+          );
+        }
+
+        if (payload.eventType === "DELETE") {
+          setParcels((prev) =>
+            prev.filter((p) => p.id !== payload.old.id)
+          );
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
+
+
   /* 🔍 FILTER */
   const filteredParcels = parcels.filter((p) => {
     const q = search.toLowerCase();
@@ -91,12 +131,9 @@ const handleScanQR = () => {
 const handleScanSuccess = async (trackingId: string) => {
   setQrScanMode(false);
 
-  if (!trackingId) {
-    alert("Invalid QR code");
-    return;
-  }
+  if (!trackingId) return alert("Invalid QR code");
 
-  // 1️⃣ Prevent duplicate
+  // Prevent duplicate
   const { data: existing } = await supabase
     .from("parcels")
     .select("id")
@@ -108,27 +145,25 @@ const handleScanSuccess = async (trackingId: string) => {
     return;
   }
 
-  // 2️⃣ Insert arrived parcel
+  // Insert parcel (arrived at post centre)
   const { data, error } = await supabase
     .from("parcels")
     .insert({
       tracking_id: trackingId,
-      status: "ready", // arrived at post centre
+      status: "ready",
+      priority: "Normal",
     })
     .select()
     .single();
 
-  if (error || !data) {
-    alert("Failed to register parcel");
+  if (error) {
+    alert(error.message);
     return;
   }
 
-  // 3️⃣ Update UI immediately
   setParcels((prev) => [data, ...prev]);
-
-  alert(`Parcel ${trackingId} registered successfully`);
+  setScanResult(trackingId);
 };
-
 
 
   /* ✍️ MANUAL ENTRY */
@@ -142,6 +177,7 @@ const handleScanSuccess = async (trackingId: string) => {
       receiverPhone: "",
       senderAddress: "",
       receiverAddress: "",
+      receiverEmail: "",
       weight: "",
       dimensions: "",
       priority: "Normal",
@@ -152,38 +188,71 @@ const handleScanSuccess = async (trackingId: string) => {
 
   /* 💾 SAVE PARCEL */
   const handleSaveParcel = async () => {
-    if (!parcelForm.sender || !parcelForm.receiver) {
-      alert("Required fields missing");
+  if (!parcelForm.sender || !parcelForm.receiver) {
+    alert("Required fields missing");
+    return;
+  }
+
+  // UPDATE existing parcel
+  if (selectedParcel) {
+    await supabase
+      .from("parcels")
+      .update({
+        sender: parcelForm.sender,
+        receiver: parcelForm.receiver,
+        sender_phone: parcelForm.senderPhone,
+        receiver_phone: parcelForm.receiverPhone,
+        sender_address: parcelForm.senderAddress,
+        receiver_address: parcelForm.receiverAddress,
+        weight: parcelForm.weight,
+        dimensions: parcelForm.dimensions,
+        priority: parcelForm.priority,
+        status: parcelForm.status,
+      })
+      .eq("id", selectedParcel.id);
+
+    setParcels((prev) =>
+      prev.map((p) =>
+        p.id === selectedParcel.id ? { ...p, ...parcelForm } : p
+      )
+    );
+  }
+
+  // INSERT new parcel (manual entry)
+  else {
+    const trackingId = `PC-${Date.now()}`;
+
+    const { data, error } = await supabase
+      .from("parcels")
+      .insert({
+        tracking_id: trackingId,
+        sender: parcelForm.sender,
+        receiver: parcelForm.receiver,
+        sender_phone: parcelForm.senderPhone,
+        receiver_phone: parcelForm.receiverPhone,
+        sender_address: parcelForm.senderAddress,
+        receiver_address: parcelForm.receiverAddress,
+        weight: parcelForm.weight,
+        dimensions: parcelForm.dimensions,
+        priority: parcelForm.priority,
+        status: parcelForm.status,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      alert(error.message);
       return;
     }
 
-    if (selectedParcel) {
-      await supabase
-        .from("parcels")
-        .update({
-          sender: parcelForm.sender,
-          receiver: parcelForm.receiver,
-          sender_phone: parcelForm.senderPhone,
-          receiver_phone: parcelForm.receiverPhone,
-          sender_address: parcelForm.senderAddress,
-          receiver_address: parcelForm.receiverAddress,
-          weight: parcelForm.weight,
-          dimensions: parcelForm.dimensions,
-          priority: parcelForm.priority,
-          status: parcelForm.status,
-        })
-        .eq("id", selectedParcel.id);
+    setParcels((prev) => [data, ...prev]);
+  }
 
-      setParcels((prev) =>
-        prev.map((p) =>
-          p.id === selectedParcel.id ? { ...p, ...parcelForm } : p
-        )
-      );
-    }
+  setIsDialogOpen(false);
+  setSelectedParcel(null);
+  setIsManualEntry(false);
+};
 
-    setIsDialogOpen(false);
-    setSelectedParcel(null);
-  };
 
   /* 🗑 DELETE */
   const handleDeleteParcel = async (parcel: Parcel) => {
@@ -258,7 +327,7 @@ const handleScanSuccess = async (trackingId: string) => {
               />
           </div>
 
-          {/* <QuickActions
+          {/* <QuickActionsx`
             onScanQR={handleScanQR}
             onManualEntry={handleManualEntry}
             qrScanMode={qrScanMode}

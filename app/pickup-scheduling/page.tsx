@@ -41,13 +41,13 @@ export default function PickupSchedulingPage() {
             </div>
 
             {/* Right: CTA */}
-            <Button
+            {/* <Button
               onClick={() => setIsBookingDialogOpen(true)}
               className="w-full md:w-auto shadow"
             >
               <Plus className="mr-2 h-4 w-4" />
               New Pickup
-            </Button>
+            </Button> */}
           </div>
         </header>
 

@@ -139,25 +139,44 @@ export default function CustomerDashboardPage() {
   /* =====================
      TRACK PARCEL LOGIC
   ===================== */
-  const handleTrackParcel = async () => {
-    setLoading(true)
-    setTrackError("")
-    setTrackedParcel(null)
+ const handleTrackParcel = async () => {
+  setLoading(true)
+  setTrackError("")
+  setTrackedParcel(null)
 
-    const { data, error } = await supabase
-      .from("parcels")
-      .select("*")
-      .eq("tracking_id", trackId)
-      .single()
+  /* 1️⃣ Try normal RLS-protected fetch */
+  const { data } = await supabase
+    .from("parcels")
+    .select("*")
+    .eq("tracking_id", trackId)
+    .maybeSingle()
 
-    if (error || !data) {
-      setTrackError("Parcel not found. Please check the tracking ID.")
-    } else {
-      setTrackedParcel(data)
-    }
-
+  if (data) {
+    setTrackedParcel(data)
     setLoading(false)
+    return
   }
+
+  /* 2️⃣ Check existence via RPC */
+  const { data: exists } = await supabase
+    .rpc("check_parcel_exists", {
+      p_tracking_id: trackId,
+    })
+
+  if (exists) {
+    setTrackError(
+      "This parcel exists but is not registered under your email or phone number."
+    )
+  } else {
+    setTrackError(
+      "Parcel not found. Please check the tracking ID."
+    )
+  }
+
+  setLoading(false)
+}
+
+
 
   /* =====================
      FILTERED PARCELS

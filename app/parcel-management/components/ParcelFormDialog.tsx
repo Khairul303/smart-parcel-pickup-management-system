@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, Edit, } from "lucide-react";
+import { Save, Edit } from "lucide-react";
 import { Parcel, ParcelFormData, ParcelStatus, ParcelPriority } from "./types";
 
 interface ParcelFormDialogProps {
@@ -50,13 +49,17 @@ export function ParcelFormDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
-            {selectedParcel ? (isManualEntry ? "Update Parcel" : "Parcel Details") : "Create New Parcel"}
+            {selectedParcel
+              ? isManualEntry
+                ? "Update Parcel"
+                : "Parcel Details"
+              : "Create New Parcel"}
           </DialogTitle>
           <DialogDescription>
-            {selectedParcel 
-              ? (isManualEntry 
-                  ? "Update parcel information and status" 
-                  : "View parcel details and information")
+            {selectedParcel
+              ? isManualEntry
+                ? "Update parcel information and status"
+                : "View parcel details and information"
               : "Enter parcel details manually or scan QR code"}
           </DialogDescription>
         </DialogHeader>
@@ -68,21 +71,20 @@ export function ParcelFormDialog({
             <TabsTrigger value="receiver">Receiver Info</TabsTrigger>
           </TabsList>
 
+          {/* ================= PARCEL DETAILS ================= */}
           <TabsContent value="details" className="space-y-4 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="parcel-id">Parcel ID</Label>
+                <Label>Parcel ID</Label>
                 <Input
-                  id="parcel-id"
                   value={selectedParcel?.id || "Auto-generated"}
                   disabled
                   className="bg-gray-50"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="qr-code">QR Code</Label>
+                <Label>QR Code</Label>
                 <Input
-                  id="qr-code"
                   value={selectedParcel?.qrCode || "Auto-generated"}
                   disabled
                   className="bg-gray-50"
@@ -92,37 +94,40 @@ export function ParcelFormDialog({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="weight">Weight *</Label>
+                <Label>Weight *</Label>
                 <Input
-                  id="weight"
-                  placeholder="2.5kg"
                   value={formData.weight}
-                  onChange={(e) => onFormChange({...formData, weight: e.target.value})}
+                  onChange={(e) =>
+                    onFormChange({ ...formData, weight: e.target.value })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
+                  required
+                />
+              </div>
 
-                  required
-                />
-              </div>
               <div className="space-y-2">
-                <Label htmlFor="dimensions">Dimensions *</Label>
+                <Label>Dimensions *</Label>
                 <Input
-                  id="dimensions"
-                  placeholder="30x20x15cm"
                   value={formData.dimensions}
-                  onChange={(e) => onFormChange({...formData, dimensions: e.target.value})}
+                  onChange={(e) =>
+                    onFormChange({ ...formData, dimensions: e.target.value })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
                   required
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority *</Label>
+                <Label>Priority *</Label>
                 <Select
                   value={formData.priority}
-                  onValueChange={(value: ParcelPriority) => onFormChange({...formData, priority: value})}
+                  onValueChange={(value: ParcelPriority) =>
+                    onFormChange({ ...formData, priority: value })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="High">High</SelectItem>
@@ -134,14 +139,16 @@ export function ParcelFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status *</Label>
+              <Label>Status *</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: ParcelStatus) => onFormChange({...formData, status: value})}
+                onValueChange={(value: ParcelStatus) =>
+                  onFormChange({ ...formData, status: value })
+                }
                 disabled={!isManualEntry && !!selectedParcel}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Not Collected</SelectItem>
@@ -152,38 +159,47 @@ export function ParcelFormDialog({
             </div>
           </TabsContent>
 
+          {/* ================= SENDER INFO ================= */}
           <TabsContent value="sender" className="space-y-4 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="sender-name">Sender Name *</Label>
+                <Label>Sender Name *</Label>
                 <Input
-                  id="sender-name"
-                  placeholder="John Doe"
                   value={formData.sender}
-                  onChange={(e) => onFormChange({...formData, sender: e.target.value})}
+                  onChange={(e) =>
+                    onFormChange({ ...formData, sender: e.target.value })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
                   required
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="sender-phone">Sender Phone *</Label>
+                <Label>Sender Phone *</Label>
                 <Input
-                  id="sender-phone"
-                  placeholder="+6012-3456789"
                   value={formData.senderPhone}
-                  onChange={(e) => onFormChange({...formData, senderPhone: e.target.value})}
+                  onChange={(e) =>
+                    onFormChange({
+                      ...formData,
+                      senderPhone: e.target.value,
+                    })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
                   required
                 />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="sender-address">Sender Address *</Label>
+              <Label>Sender Address *</Label>
               <Textarea
-                id="sender-address"
-                placeholder="123 Main Street, City, State"
                 value={formData.senderAddress}
-                onChange={(e) => onFormChange({...formData, senderAddress: e.target.value})}
+                onChange={(e) =>
+                  onFormChange({
+                    ...formData,
+                    senderAddress: e.target.value,
+                  })
+                }
                 disabled={!isManualEntry && !!selectedParcel}
                 rows={3}
                 required
@@ -191,38 +207,65 @@ export function ParcelFormDialog({
             </div>
           </TabsContent>
 
+          {/* ================= RECEIVER INFO ================= */}
           <TabsContent value="receiver" className="space-y-4 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="receiver-name">Receiver Name *</Label>
+                <Label>Receiver Name *</Label>
                 <Input
-                  id="receiver-name"
-                  placeholder="Sarah Smith"
                   value={formData.receiver}
-                  onChange={(e) => onFormChange({...formData, receiver: e.target.value})}
+                  onChange={(e) =>
+                    onFormChange({ ...formData, receiver: e.target.value })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
                   required
                 />
               </div>
+
+              {/* ✅ NEW EMAIL FIELD */}
               <div className="space-y-2">
-                <Label htmlFor="receiver-phone">Receiver Phone *</Label>
+                <Label>Receiver Email *</Label>
                 <Input
-                  id="receiver-phone"
-                  placeholder="+6019-8765432"
+                  type="email"
+                  placeholder="receiver@email.com"
+                  value={formData.receiverEmail}
+                  onChange={(e) =>
+                    onFormChange({
+                      ...formData,
+                      receiverEmail: e.target.value,
+                    })
+                  }
+                  disabled={!isManualEntry && !!selectedParcel}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Receiver Phone *</Label>
+                <Input
                   value={formData.receiverPhone}
-                  onChange={(e) => onFormChange({...formData, receiverPhone: e.target.value})}
+                  onChange={(e) =>
+                    onFormChange({
+                      ...formData,
+                      receiverPhone: e.target.value,
+                    })
+                  }
                   disabled={!isManualEntry && !!selectedParcel}
                   required
                 />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="receiver-address">Receiver Address *</Label>
+              <Label>Receiver Address *</Label>
               <Textarea
-                id="receiver-address"
-                placeholder="456 Oak Avenue, City, State"
                 value={formData.receiverAddress}
-                onChange={(e) => onFormChange({...formData, receiverAddress: e.target.value})}
+                onChange={(e) =>
+                  onFormChange({
+                    ...formData,
+                    receiverAddress: e.target.value,
+                  })
+                }
                 disabled={!isManualEntry && !!selectedParcel}
                 rows={3}
                 required
@@ -232,13 +275,10 @@ export function ParcelFormDialog({
         </Tabs>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-3">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="border-gray-300"
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
+
           {(!selectedParcel || isManualEntry) && (
             <Button
               className="bg-blue-600 hover:bg-blue-700 gap-2"
@@ -248,6 +288,7 @@ export function ParcelFormDialog({
               {selectedParcel ? "Update Parcel" : "Create Parcel"}
             </Button>
           )}
+
           {selectedParcel && !isManualEntry && (
             <Button
               className="bg-blue-600 hover:bg-blue-700 gap-2"

@@ -131,7 +131,7 @@ export function ParcelTable({
                     {/* Parcel ID */}
                     <TableCell>
                       <div className="font-medium text-gray-900">
-                        {parcel.id}
+                        {parcel.tracking_id}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                         <QrCode className="h-3 w-3" />
@@ -149,7 +149,7 @@ export function ParcelTable({
                       </div>
                       <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                         <Phone className="h-3 w-3" />
-                        {parcel.senderPhone}
+                        {parcel.receiverPhone}
                       </div>
                     </TableCell>
 
@@ -164,7 +164,7 @@ export function ParcelTable({
                           {statusConfig[parcel.status].label}
                         </Badge>
                       )}
-                      {PriorityIcon && (
+                      {/* {PriorityIcon && (
                         <Badge
                           variant="outline"
                           className={`gap-1 mt-1 ${priorityConfig[parcel.priority].color}`}
@@ -172,7 +172,7 @@ export function ParcelTable({
                           <PriorityIcon className="h-3 w-3" />
                           {parcel.priority}
                         </Badge>
-                      )}
+                      )} */}
                     </TableCell>
 
                     {/* Details */}

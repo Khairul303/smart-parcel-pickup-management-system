@@ -1,59 +1,122 @@
-import { Package, Calendar, UserCheck, CheckCircle, ClockIcon } from "lucide-react"
+import {
+  Package,
+  Calendar,
+  UserCheck,
+  CheckCircle,
+  ClockIcon,
+  ClipboardCheck,
+} from "lucide-react"
 
+export const AVERAGE_HANDLING_TIME = 3
+
+/* =========================
+   PICKUP STATUS (FLOW)
+========================= */
 export type PickupStatus =
-  | "ready"
   | "booked"
   | "checked_in"
   | "collected"
   | "no_show"
+  | "cancelled"
 
+/* =========================
+   PREPARATION STATUS
+========================= */
+export type PreparationStatus =
+  | "pending"
+  | "prepared"
+
+/* =========================
+   PICKUP MODEL (STAFF SIDE)
+========================= */
 export interface Pickup {
-  id: string
-  tracking_id: string
+  id: string                     // pickup_code
+  pickup_date: string
+  time_slot: string
+  queue_number: string           // Q-001
   customer_name: string
-  pickup_time: string
+  customer_phone?: string
+  customer_email?: string
+
+  tracking_ids: string[]         // MULTIPLE parcels
+  parcel_count?: number          // derived from tracking_ids.length
+
   status: PickupStatus
-  queue_number: number
-  phone?: string
-  email?: string
-  parcel_count?: number
+  preparation_status: PreparationStatus
 }
 
-// Update the variant types to match Badge component's accepted variants
-export const statusConfig: Record<PickupStatus, {
-  label: string;
-  variant: "default" | "secondary" | "destructive" | "outline";
-  icon: React.ReactNode;
-  colorClass?: string; // Add custom color class for styling
-}> = {
-  ready: {
-    label: "Ready",
-    variant: "outline",
-    icon: <Package className="h-3 w-3 mr-1" />,
-    colorClass: "text-gray-700 border-gray-300"
-  },
+/* =========================
+   STATUS BADGE CONFIG
+   (Shadcn-safe)
+========================= */
+export const statusConfig: Record<
+  PickupStatus,
+  {
+    label: string
+    variant: "default" | "secondary" | "destructive" | "outline"
+    icon: React.ReactNode
+    colorClass?: string
+  }
+> = {
   booked: {
     label: "Booked",
     variant: "default",
     icon: <Calendar className="h-3 w-3 mr-1" />,
-    colorClass: "text-blue-700 border-blue-300 bg-blue-50"
+    colorClass: "text-blue-700 border-blue-300 bg-blue-50",
   },
+
   checked_in: {
     label: "Checked In",
-    variant: "secondary", // Changed from "success" to "secondary"
+    variant: "secondary",
     icon: <UserCheck className="h-3 w-3 mr-1" />,
-    colorClass: "text-green-700 border-green-300 bg-green-50"
+    colorClass: "text-green-700 border-green-300 bg-green-50",
   },
+
   collected: {
     label: "Collected",
     variant: "outline",
     icon: <CheckCircle className="h-3 w-3 mr-1" />,
-    colorClass: "text-purple-700 border-purple-300"
+    colorClass: "text-purple-700 border-purple-300",
   },
+
   no_show: {
     label: "No Show",
     variant: "destructive",
     icon: <ClockIcon className="h-3 w-3 mr-1" />,
-    colorClass: "text-red-700 border-red-300 bg-red-50"
+    colorClass: "text-red-700 border-red-300 bg-red-50",
+  },
+
+  cancelled: {
+    label: "Cancelled",
+    variant: "destructive",
+    icon: <Package className="h-3 w-3 mr-1" />,
+    colorClass: "text-gray-500 border-gray-300 bg-gray-100",
+  },
+}
+
+
+/* =========================
+   PREPARATION BADGE CONFIG
+========================= */
+export const preparationConfig: Record<
+  PreparationStatus,
+  {
+    label: string
+    variant: "default" | "secondary" | "outline"
+    icon: React.ReactNode
+    colorClass?: string
   }
+> = {
+  pending: {
+    label: "Not Prepared",
+    variant: "secondary",
+    icon: <Package className="h-3 w-3 mr-1" />,
+    colorClass: "text-gray-700 border-gray-300 bg-gray-50",
+  },
+  prepared: {
+    label: "Prepared",
+    variant: "outline",
+    icon: <ClipboardCheck className="h-3 w-3 mr-1" />,
+    colorClass: "text-emerald-700 border-emerald-300 bg-emerald-50",
+  },
 }

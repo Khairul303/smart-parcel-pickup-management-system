@@ -69,8 +69,9 @@ export function PickupCalendar({
         const dateStr = d.toISOString().split("T")[0]
 
         const { data, error } = await supabase.rpc("get_available_slots", {
-          selected_date: dateStr,
+          p_date: dateStr,
         })
+
 
         if (error) continue
 
@@ -113,9 +114,10 @@ export function PickupCalendar({
         return
       }
 
-      const { data, error } = await supabase.rpc("get_available_slots", {
-        selected_date: selectedDate,
-      })
+    const { data, error } = await supabase.rpc("get_available_slots", {
+      p_date: selectedDate,
+    })
+
 
       if (error || !active) return
 

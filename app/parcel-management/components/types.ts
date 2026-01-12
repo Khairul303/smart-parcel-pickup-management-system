@@ -26,6 +26,7 @@ export interface ParcelFormData {
   receiverPhone: string;
   senderAddress: string;
   receiverAddress: string;
+  receiverEmail: string;
   weight: string;
   dimensions: string;
   priority: ParcelPriority;
