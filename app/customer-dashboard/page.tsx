@@ -40,6 +40,7 @@ import { StatsCards } from "./components/StatsCards"
 import { QueueStatus } from "./components/QueueStatus"
 import { RecentActivity } from "./components/RecentActivity"
 import { PeakTime } from "./components/PeakTime"
+import { NotificationsDialog } from "./components/notifications"
 
 import supabase from "@/lib/supabase"
 
@@ -53,7 +54,7 @@ type Parcel = {
   receiver: string
   weight?: string
   priority: string
-  status: "pending" | "arrived" | "ready-for-pickup" | "delivered"
+  status: "pending" | "ready" | "ready-for-pickup" | "completed"
   created_at: string
 }
 
@@ -97,10 +98,10 @@ export default function CustomerDashboardPage() {
   const stats = {
     totalParcels: parcels.length,
     readyForPickup: parcels.filter(
-      (p) => p.status === "ready-for-pickup"
+      (p) => p.status === "ready"
     ).length,
     completed: parcels.filter(
-      (p) => p.status === "delivered"
+      (p) => p.status === "completed"
     ).length,
   }
 
@@ -124,9 +125,9 @@ export default function CustomerDashboardPage() {
   const getStatusBadge = (status: Parcel["status"]) => {
     const styles: Record<Parcel["status"], string> = {
       pending: "bg-gray-100 text-gray-800",
-      arrived: "bg-green-100 text-green-800",
+      ready: "bg-green-100 text-green-800",
       "ready-for-pickup": "bg-blue-100 text-blue-800",
-      delivered: "bg-emerald-100 text-emerald-800",
+      completed: "bg-emerald-100 text-emerald-800",
     }
 
     return (
@@ -187,11 +188,11 @@ export default function CustomerDashboardPage() {
       .includes(searchQuery.toLowerCase())
 
     if (statusFilter === "ready") {
-      return matchesSearch && p.status === "ready-for-pickup"
+      return matchesSearch && p.status === "ready"
     }
 
     if (statusFilter === "completed") {
-      return matchesSearch && p.status === "delivered"
+      return matchesSearch && p.status === "completed"
     }
 
     return matchesSearch
@@ -209,15 +210,15 @@ export default function CustomerDashboardPage() {
               <h1 className="text-xl font-semibold">
                 Customer Dashboard
               </h1>
-
-              <Button variant="outline" size="icon" className="relative">
+                <NotificationsDialog />
+              {/* <Button variant="outline" size="icon" className="relative">
                 <Bell className="h-4 w-4" />
                 {unreadNotifications > 0 && (
                   <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
                     {unreadNotifications}
                   </span>
                 )}
-              </Button>
+              </Button> */}
             </div>
           </div>
         </header>

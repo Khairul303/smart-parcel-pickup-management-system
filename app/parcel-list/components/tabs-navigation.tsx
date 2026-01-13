@@ -27,7 +27,7 @@ export function TabsNavigation({
       (p) => p.status === "pending" || p.status === "in-transit"
     ).length,
     postcenter: parcels.filter(
-      (p) => p.status === "arrived" || p.status === "ready-for-pickup"
+      (p) => p.status === "ready" || p.status === "ready-for-pickup"
     ).length,
     completed: parcels.filter(
       (p) => p.status === "delivered"

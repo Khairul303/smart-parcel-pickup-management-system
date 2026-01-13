@@ -92,14 +92,14 @@ export function EditDialog({
             />
           </div>
 
-          <div>
+          {/* <div>
             <Label>Special Instructions</Label>
             <Textarea
               value={specialInstructions}
               onChange={(e) => setSpecialInstructions(e.target.value)}
               rows={2}
             />
-          </div>
+          </div> */}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>

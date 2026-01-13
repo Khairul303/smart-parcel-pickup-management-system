@@ -46,7 +46,7 @@ export function ParcelStatusBadge({
       icon: <Truck className={iconSize} />,
       label: "In Transit",
     },
-    arrived: {
+    "ready": {
       color: "bg-green-100 text-green-800 border-green-200",
       icon: <Package className={iconSize} />,
       label: "Arrived at Post Centre",

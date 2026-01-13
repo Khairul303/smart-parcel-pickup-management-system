@@ -25,6 +25,18 @@ interface Props {
   onBook: (pickup: PickupSchedule & { trackingIds?: string[] }) => void
 }
 
+// ✅ STRONGLY TYPED PROFILE
+interface Profile {
+  id: string
+  full_name: string
+  no_telephone: string
+  email: string
+  // 👇 optional future fields (safe even if not used)
+  address?: string
+  role?: string
+  created_at?: string
+}
+
 // ⏱ average handling time per customer
 const AVG_HANDLE_MINUTES = 5
 
@@ -36,17 +48,45 @@ export function BookingDialog({
   onBook,
 }: Props) {
   const [queuePreview, setQueuePreview] = useState<number | null>(null)
-
   const [trackingIds, setTrackingIds] = useState<string[]>([""])
 
+  // ✅ TYPED PROFILE STATE
+  const [profile, setProfile] = useState<Profile | null>(null)
+
   const [formData, setFormData] = useState({
-    customerName: "",
-    customerPhone: "",
-    customerEmail: "",
     pickupAddress: "",
     parcelDetails: "",
     specialInstructions: "",
   })
+
+  // ======================
+  // LOAD FULL PROFILE DATA
+  // ======================
+  useEffect(() => {
+    if (!isOpen) return
+
+    const fetchProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from("profile_with_email")
+        .select("*")
+        .eq("id", user.id)
+        .single<Profile>() // ✅ typed response
+
+      if (!error && data) {
+        setProfile(data)
+      } else {
+        console.error("Failed to load profile:", error)
+      }
+    }
+
+    fetchProfile()
+  }, [isOpen])
 
   // ======================
   // PREVIEW QUEUE NUMBER
@@ -91,7 +131,7 @@ export function BookingDialog({
   }
 
   const handleSubmit = () => {
-    if (!selectedTimeSlot || !formData.parcelDetails.trim()) {
+    if (!profile || !selectedTimeSlot || !formData.parcelDetails.trim()) {
       alert("Please complete required fields")
       return
     }
@@ -104,10 +144,10 @@ export function BookingDialog({
       id: "",
       date: selectedDate,
       timeSlot: selectedTimeSlot,
-      status: "confirmed",
-      customerName: formData.customerName,
-      customerPhone: formData.customerPhone,
-      customerEmail: formData.customerEmail,
+      status: "booked",
+      customerName: profile.full_name,
+      customerPhone: profile.no_telephone,
+      customerEmail: profile.email,
       pickupAddress: formData.pickupAddress,
       parcelDetails: formData.parcelDetails,
       specialInstructions: formData.specialInstructions,
@@ -160,24 +200,10 @@ export function BookingDialog({
 
         {/* CUSTOMER & PARCEL INFO */}
         <div className="grid gap-4">
-          <Input
-            placeholder="Name"
-            onChange={(e) =>
-              setFormData({ ...formData, customerName: e.target.value })
-            }
-          />
-          <Input
-            placeholder="Phone"
-            onChange={(e) =>
-              setFormData({ ...formData, customerPhone: e.target.value })
-            }
-          />
-          <Input
-            placeholder="Email"
-            onChange={(e) =>
-              setFormData({ ...formData, customerEmail: e.target.value })
-            }
-          />
+          <Input placeholder="Name" value={profile?.full_name ?? ""} disabled />
+          <Input placeholder="Phone" value={profile?.no_telephone ?? ""} disabled />
+          <Input placeholder="Email" value={profile?.email ?? ""} disabled />
+
           <Textarea
             placeholder="Pickup Address"
             onChange={(e) =>

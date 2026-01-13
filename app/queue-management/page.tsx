@@ -1,6 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useState, startTransition } from "react"
+import {
+  useCallback,
+  useEffect,
+  useState,
+  startTransition,
+} from "react"
 import supabase from "@/lib/supabase"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
@@ -40,12 +45,24 @@ interface PickupRow {
   pickup_code: string
   pickup_date: string
   time_slot: string
-  queue_number: string
+  queue_number: string | null
   customer_name: string
   customer_phone: string | null
   tracking_ids: string[] | null
   status: "booked" | "checked_in" | "collected" | "cancelled" | "no_show"
   preparation_status: "pending" | "prepared"
+}
+
+/* =====================
+   MALAYSIA DATE (Asia/KL)
+===================== */
+const getMalaysiaDateString = () => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
 }
 
 export default function PickupManagementPage() {
@@ -60,12 +77,10 @@ export default function PickupManagementPage() {
   const loadPickups = useCallback(async () => {
     setIsRefreshing(true)
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayStr = today.toLocaleDateString("en-CA")
+    const todayStr = getMalaysiaDateString()
 
     const { data, error } = await supabase
-      .from("pickup_bookings")
+      .from("pickup_bookings") // ✅ SINGLE SOURCE OF TRUTH
       .select(`
         pickup_code,
         pickup_date,
@@ -80,27 +95,36 @@ export default function PickupManagementPage() {
       .gte("pickup_date", todayStr)
       .order("pickup_date", { ascending: true })
       .order("time_slot", { ascending: true })
-      .order("queue_number", { ascending: true })
+
+    console.log("STAFF PICKUP QUEUE DATA:", data)
 
     startTransition(() => {
       if (error) {
-        console.error(error)
+        console.error("Failed to load pickups:", error)
         setPickups([])
       } else {
-        setPickups(
-          (data as PickupRow[]).map((p) => ({
+        const mapped =
+          (data as PickupRow[] | null)?.map((p) => ({
             id: p.pickup_code,
             pickup_date: p.pickup_date,
             time_slot: p.time_slot,
-            queue_number: p.queue_number,
+            queue_number: p.queue_number ?? "-",
             customer_name: p.customer_name,
             customer_phone: p.customer_phone ?? undefined,
             tracking_ids: p.tracking_ids ?? [],
             parcel_count: p.tracking_ids?.length ?? 0,
             status: p.status,
             preparation_status: p.preparation_status,
-          }))
-        )
+          })) ?? []
+
+        // numeric-safe queue sorting
+        mapped.sort((a, b) => {
+          const qa = parseInt(a.queue_number.replace(/\D/g, "")) || 0
+          const qb = parseInt(b.queue_number.replace(/\D/g, "")) || 0
+          return qa - qb
+        })
+
+        setPickups(mapped)
       }
 
       setIsRefreshing(false)
@@ -108,11 +132,12 @@ export default function PickupManagementPage() {
   }, [])
 
   /* =====================
-     INITIAL LOAD (NO WARNING)
+     INITIAL LOAD
   ===================== */
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadPickups()
+    startTransition(() => {
+      loadPickups()
+    })
   }, [loadPickups])
 
   /* =====================
@@ -151,7 +176,7 @@ export default function PickupManagementPage() {
       : 0
 
   /* =====================
-     ACTIONS
+     ACTIONS (SAME TABLE)
   ===================== */
   const handlePrepare = async (pickup: Pickup) => {
     await supabase
@@ -159,19 +184,11 @@ export default function PickupManagementPage() {
       .update({ preparation_status: "prepared" })
       .eq("pickup_code", pickup.id)
 
-    setPickups((prev) =>
-      prev.map((p) =>
-        p.id === pickup.id
-          ? { ...p, preparation_status: "prepared" }
-          : p
-      )
-    )
+    loadPickups()
   }
 
   const handleCheckIn = async (pickup: Pickup) => {
-    const todayStr = new Date().toLocaleDateString("en-CA")
-
-    if (pickup.pickup_date !== todayStr) {
+    if (pickup.pickup_date !== getMalaysiaDateString()) {
       alert("Pickup is not scheduled for today")
       return
     }
@@ -186,11 +203,7 @@ export default function PickupManagementPage() {
       .update({ status: "checked_in" })
       .eq("pickup_code", pickup.id)
 
-    setPickups((prev) =>
-      prev.map((p) =>
-        p.id === pickup.id ? { ...p, status: "checked_in" } : p
-      )
-    )
+    loadPickups()
   }
 
   const handleCollected = async (pickup: Pickup) => {
@@ -199,11 +212,7 @@ export default function PickupManagementPage() {
       .update({ status: "collected" })
       .eq("pickup_code", pickup.id)
 
-    setPickups((prev) =>
-      prev.map((p) =>
-        p.id === pickup.id ? { ...p, status: "collected" } : p
-      )
-    )
+    loadPickups()
   }
 
   /* =====================

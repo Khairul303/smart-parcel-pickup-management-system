@@ -88,7 +88,7 @@ Receiver: ${parcel.receiver}`
     status === "pending" || status === "in-transit"
 
   const isReadyToPickup = (status: string) =>
-    status === "arrived" || status === "ready-for-pickup"
+    status === "ready" || status === "ready-for-pickup"
 
   const isCompleted = (status: string) =>
     status === "delivered"
@@ -124,7 +124,7 @@ Receiver: ${parcel.receiver}`
                 My Parcels
               </h1>
 
-              <div className="flex items-center gap-4">
+              {/* <div className="flex items-center gap-4">
                 <Button variant="outline" size="icon" className="relative">
                   <Bell className="h-4 w-4" />
                   {unreadNotifications > 0 && (
@@ -133,7 +133,7 @@ Receiver: ${parcel.receiver}`
                     </span>
                   )}
                 </Button>
-              </div>
+              </div> */}
             </div>
           </div>
         </header>
@@ -145,7 +145,7 @@ Receiver: ${parcel.receiver}`
               Welcome back 👋
             </h2>
             <p className="mt-2 text-gray-600">
-              Track your parcels and manage pickups easily
+              Record your parcels. 
             </p>
           </div>
 

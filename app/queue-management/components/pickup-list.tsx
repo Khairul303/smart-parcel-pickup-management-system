@@ -1,10 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock } from "lucide-react"
-import { Eye } from "lucide-react"
+import { Calendar, Clock, Eye } from "lucide-react"
 import { RecordDetailsModal } from "./record-details-modal"
 
 import {
@@ -40,6 +39,14 @@ interface PickupListProps {
   onCollected: (pickup: Pickup) => Promise<void>
 }
 
+/* ======================
+   SAFE QUEUE PARSER
+====================== */
+const getQueueIndex = (queue: string) => {
+  const num = parseInt(queue.replace(/\D/g, ""), 10)
+  return isNaN(num) ? 0 : num
+}
+
 export function PickupList({
   pickups,
   filteredPickups,
@@ -51,11 +58,10 @@ export function PickupList({
   const [activeTab, setActiveTab] = useState("all")
   const [selectedPickup, setSelectedPickup] = useState<Pickup | null>(null)
 
-
   /* ======================
-     TAB FILTERING
+     TAB FILTERING (SAFE)
   ====================== */
-  const getFilteredByTab = () => {
+  const tabPickups = useMemo(() => {
     switch (activeTab) {
       case "active":
         return filteredPickups.filter(
@@ -64,34 +70,38 @@ export function PickupList({
               p.preparation_status === "prepared") ||
             p.status === "checked_in"
         )
+
       case "completed":
-        return filteredPickups.filter((p) => p.status === "collected")
+        return filteredPickups.filter(
+          (p) => p.status === "collected"
+        )
+
       default:
         return filteredPickups
     }
-  }
+  }, [activeTab, filteredPickups])
 
   /* ======================
-     QUEUE → ESTIMATED WAIT
-     (NUMERIC SAFE)
+     ESTIMATED WAIT (SAFE)
   ====================== */
-  const getEstimatedWait = (pickupId: string) => {
-    const checkedInQueue = pickups
+  const getEstimatedWait = (pickup: Pickup) => {
+    if (pickup.status !== "checked_in") return null
+
+    const queue = pickups
       .filter((p) => p.status === "checked_in")
-      .sort((a, b) => {
-        const aNum = Number(a.queue_number.replace("Q-", ""))
-        const bNum = Number(b.queue_number.replace("Q-", ""))
-        return aNum - bNum
-      })
+      .sort(
+        (a, b) =>
+          getQueueIndex(a.queue_number) -
+          getQueueIndex(b.queue_number)
+      )
 
-    const position =
-      checkedInQueue.findIndex((p) => p.id === pickupId) + 1
+    const position = queue.findIndex(
+      (p) => p.id === pickup.id
+    )
 
-    if (position <= 0) return null
-    return (position - 1) * AVERAGE_HANDLING_TIME
+    if (position === -1) return null
+    return position * AVERAGE_HANDLING_TIME
   }
-
-  const tabPickups = getFilteredByTab()
 
   return (
     <Card className="border shadow-sm h-full">
@@ -130,9 +140,10 @@ export function PickupList({
 
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
             {tabPickups.map((pickup) => {
-              const estimatedWait = getEstimatedWait(pickup.id)
+              const estimatedWait = getEstimatedWait(pickup)
               const status = statusConfig[pickup.status]
-              const prep = preparationConfig[pickup.preparation_status]
+              const prep =
+                preparationConfig[pickup.preparation_status]
 
               return (
                 <div
@@ -145,18 +156,17 @@ export function PickupList({
                       {/* QUEUE */}
                       <div className="flex flex-col items-center">
                         <div className="px-4 py-3 rounded-lg border bg-gray-100">
-                          <span className="text-xl font-bold tracking-wide">
+                          <span className="text-xl font-bold">
                             {pickup.queue_number}
                           </span>
                         </div>
 
-                        {pickup.status === "checked_in" &&
-                          estimatedWait !== null && (
-                            <div className="mt-1 text-xs text-amber-600 flex items-center">
-                              <Timer className="h-3 w-3 mr-1" />
-                              ~{estimatedWait} min
-                            </div>
-                          )}
+                        {estimatedWait !== null && (
+                          <div className="mt-1 text-xs text-amber-600 flex items-center">
+                            <Timer className="h-3 w-3 mr-1" />
+                            ~{estimatedWait} min
+                          </div>
+                        )}
                       </div>
 
                       {/* INFO */}
@@ -211,7 +221,8 @@ export function PickupList({
                               {pickup.customer_phone || "—"}
                             </span>
                           </div>
-                          {/* PICKUP DATE & TIME SLOT */}
+
+                          {/* DATE + SLOT */}
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
@@ -222,10 +233,13 @@ export function PickupList({
                               <Clock className="h-4 w-4" />
                               <span>{pickup.time_slot}</span>
                             </div>
+
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => setSelectedPickup(pickup)}
+                              onClick={() =>
+                                setSelectedPickup(pickup)
+                              }
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -248,10 +262,13 @@ export function PickupList({
                       )}
 
                       {pickup.status === "booked" &&
-                        pickup.preparation_status === "prepared" && (
+                        pickup.preparation_status ===
+                          "prepared" && (
                           <Button
                             size="sm"
-                            onClick={() => onCheckIn(pickup)}
+                            onClick={() =>
+                              onCheckIn(pickup)
+                            }
                           >
                             <UserCheck className="h-4 w-4 mr-2" />
                             Check In
@@ -261,7 +278,9 @@ export function PickupList({
                       {pickup.status === "checked_in" && (
                         <Button
                           size="sm"
-                          onClick={() => onCollected(pickup)}
+                          onClick={() =>
+                            onCollected(pickup)
+                          }
                           className="bg-emerald-600 hover:bg-emerald-700"
                         >
                           <PackageCheck className="h-4 w-4 mr-2" />
@@ -282,14 +301,14 @@ export function PickupList({
           </div>
         </Tabs>
       </CardContent>
-      {selectedPickup && (
-      <RecordDetailsModal
-        pickup={selectedPickup}
-        isOpen={!!selectedPickup}
-        onClose={() => setSelectedPickup(null)}
-      />
-    )}
 
+      {selectedPickup && (
+        <RecordDetailsModal
+          pickup={selectedPickup}
+          isOpen
+          onClose={() => setSelectedPickup(null)}
+        />
+      )}
     </Card>
   )
 }

@@ -50,7 +50,7 @@ export function ParcelsList({
 
       case "postcenter":
         filtered = parcels.filter(
-          (p) => p.status === "arrived" || p.status === "ready-for-pickup"
+          (p) => p.status === "ready" || p.status === "ready-for-pickup"
         )
         break
 

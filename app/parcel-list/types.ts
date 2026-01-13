@@ -10,7 +10,7 @@
 export type ParcelStatus =
   | "pending"
   | "in-transit"
-  | "arrived"
+  | "ready"
   | "ready-for-pickup"
   | "delivered"
 
