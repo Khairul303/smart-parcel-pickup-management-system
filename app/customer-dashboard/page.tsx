@@ -51,6 +51,11 @@ import { NotificationsDialog } from "./components/notifications"
 import { useUserTrackingIds } from "./hooks/useUserTrackingIds"
 
 import supabase from "@/lib/supabase"
+import {
+  PARCEL_STATUS,
+  PARCEL_STATUS_LABEL,
+  ParcelStatusFilter,
+} from "@/lib/parcel-status"
 
 /* =====================
    TYPES
@@ -72,9 +77,38 @@ type Parcel = {
     | "delivered"
   created_at?: string | null
   updated_at?: string | null
+  receiver_email?: string | null
+  receiver_phone?: string | null
+  user_id?: string | null
+  customer_id?: string | null
+  profile_id?: string | null
 }
 
-type StatusFilter = "all" | "ready" | "completed"
+type StatusFilter = ParcelStatusFilter
+
+type CustomerProfile = {
+  id: string
+  email: string | null
+  phone: string | null
+}
+
+const normalize = (value?: string | null) => value?.trim().toLowerCase() ?? ""
+
+const belongsToCustomer = (parcel: Parcel, profile: CustomerProfile) => {
+  if (parcel.user_id) return parcel.user_id === profile.id
+  if (parcel.customer_id) return parcel.customer_id === profile.id
+  if (parcel.profile_id) return parcel.profile_id === profile.id
+
+  const email = normalize(profile.email)
+  const phone = normalize(profile.phone)
+  const parcelEmail = normalize(parcel.receiver_email)
+  const parcelPhone = normalize(parcel.receiver_phone)
+
+  if (email && parcelEmail) return parcelEmail === email
+  if (phone && parcelPhone) return parcelPhone === phone
+
+  return true
+}
 
 /* =====================
    COMPONENT
@@ -82,7 +116,9 @@ type StatusFilter = "all" | "ready" | "completed"
 export default function CustomerDashboardPage() {
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    PARCEL_STATUS.ALL
+  )
 
   /* ===== TRACK PARCEL ===== */
   const [isTrackOpen, setIsTrackOpen] = useState(false)
@@ -101,12 +137,32 @@ export default function CustomerDashboardPage() {
   ===================== */
   useEffect(() => {
     const fetchParcels = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("no_telephone")
+        .eq("id", user.id)
+        .maybeSingle()
+
       const { data } = await supabase
         .from("parcels")
         .select("*")
         .order("created_at", { ascending: false })
 
-      if (data) setParcels(data)
+      if (data) {
+        const profile: CustomerProfile = {
+          id: user.id,
+          email: user.email ?? null,
+          phone: profileData?.no_telephone ?? null,
+        }
+
+        setParcels((data as Parcel[]).filter((parcel) => belongsToCustomer(parcel, profile)))
+      }
     }
 
     fetchParcels()
@@ -118,10 +174,10 @@ export default function CustomerDashboardPage() {
   const stats = {
     totalParcels: parcels.length,
     readyForPickup: parcels.filter(
-      (p) => p.status === "ready"
+      (p) => p.status === PARCEL_STATUS.READY
     ).length,
     completed: parcels.filter(
-      (p) => p.status === "completed"
+      (p) => p.status === PARCEL_STATUS.COMPLETED
     ).length,
   }
 
@@ -130,12 +186,12 @@ export default function CustomerDashboardPage() {
   ===================== */
   const getFilterLabel = () => {
     switch (statusFilter) {
-      case "ready":
-        return "Ready for Pickup"
-      case "completed":
-        return "Completed"
+      case PARCEL_STATUS.READY:
+        return PARCEL_STATUS_LABEL[PARCEL_STATUS.READY]
+      case PARCEL_STATUS.COMPLETED:
+        return PARCEL_STATUS_LABEL[PARCEL_STATUS.COMPLETED]
       default:
-        return "All"
+        return PARCEL_STATUS_LABEL[PARCEL_STATUS.ALL]
     }
   }
 
@@ -217,12 +273,12 @@ export default function CustomerDashboardPage() {
       .toLowerCase()
       .includes(searchQuery.toLowerCase())
 
-    if (statusFilter === "ready") {
-      return matchesSearch && p.status === "ready"
+    if (statusFilter === PARCEL_STATUS.READY) {
+      return matchesSearch && p.status === PARCEL_STATUS.READY
     }
 
-    if (statusFilter === "completed") {
-      return matchesSearch && p.status === "completed"
+    if (statusFilter === PARCEL_STATUS.COMPLETED) {
+      return matchesSearch && p.status === PARCEL_STATUS.COMPLETED
     }
 
     return matchesSearch
@@ -304,14 +360,14 @@ export default function CustomerDashboardPage() {
                       </DropdownMenuTrigger>
 
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setStatusFilter("all")}>
-                          All
+                        <DropdownMenuItem onClick={() => setStatusFilter(PARCEL_STATUS.ALL)}>
+                          {PARCEL_STATUS_LABEL[PARCEL_STATUS.ALL]}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter("ready")}>
-                          Ready for Pickup
+                        <DropdownMenuItem onClick={() => setStatusFilter(PARCEL_STATUS.READY)}>
+                          {PARCEL_STATUS_LABEL[PARCEL_STATUS.READY]}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter("completed")}>
-                          Completed
+                        <DropdownMenuItem onClick={() => setStatusFilter(PARCEL_STATUS.COMPLETED)}>
+                          {PARCEL_STATUS_LABEL[PARCEL_STATUS.COMPLETED]}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
