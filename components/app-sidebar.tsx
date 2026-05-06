@@ -7,7 +7,6 @@ import {
   PackageCheck,
   ListChecks,
   User,
-  Users,
   BarChart3,
   ClipboardList,
   LogOut

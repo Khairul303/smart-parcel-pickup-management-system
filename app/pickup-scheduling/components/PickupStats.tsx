@@ -9,8 +9,12 @@ interface PickupStatsProps {
 
 export function PickupStats({ pickups }: PickupStatsProps) {
   const totalPickups = pickups.length
-  const completedPickups = pickups.filter(p => p.status === 'completed').length
-  const upcomingPickups = pickups.filter(p => p.status === 'confirmed').length
+  const completedPickups = pickups.filter(
+    (p) => p.status === "collected"
+  ).length
+  const upcomingPickups = pickups.filter(
+    (p) => p.status === "booked" || p.status === "checked_in"
+  ).length
 
   return (
     <Card>

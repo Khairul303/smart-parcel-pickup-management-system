@@ -4,25 +4,8 @@ import { useState, useEffect } from "react"
 import { ParcelsList } from "./components/parcel-list"
 import { Parcel } from "./types"
 
-import {
-  Bell,
-  ChevronRight,
-  User,
-  Shield,
-  Award,
-  Package as PackageIcon,
-} from "lucide-react"
+import { Package as PackageIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
@@ -34,7 +17,6 @@ export default function ParcelListPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(true)
-  const [unreadNotifications] = useState(3)
 
   /* =====================
      FETCH PARCELS (SUPABASE)
@@ -63,11 +45,11 @@ export default function ParcelListPage() {
   /* =====================
      HANDLERS (UI ONLY)
   ===================== */
-  const handleRequestRedelivery = (parcelId: string) => {
+  const handleRequestRedelivery = () => {
     alert("Redelivery request submitted. Staff will contact you.")
   }
 
-  const handleExtendPickup = (parcelId: string) => {
+  const handleExtendPickup = () => {
     alert("Pickup extension requested.")
   }
 

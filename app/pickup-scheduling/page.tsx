@@ -8,8 +8,6 @@ import {
 } from "@/components/ui/sidebar"
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
 import { PickupScheduling } from "./components/PickupScheduling"
-import { Button } from "@/components/ui/button"
-import { Plus, Calendar } from "lucide-react"
 
 export default function PickupSchedulingPage() {
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)

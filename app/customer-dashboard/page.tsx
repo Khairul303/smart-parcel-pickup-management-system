@@ -5,7 +5,6 @@ import {
   Plus,
   Filter,
   Calendar,
-  Bell,
   ChevronDown,
 } from "lucide-react"
 
@@ -29,9 +28,17 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
@@ -41,6 +48,7 @@ import { QueueStatus } from "./components/QueueStatus"
 import { RecentActivity } from "./components/RecentActivity"
 import { PeakTime } from "./components/PeakTime"
 import { NotificationsDialog } from "./components/notifications"
+import { useUserTrackingIds } from "./hooks/useUserTrackingIds"
 
 import supabase from "@/lib/supabase"
 
@@ -50,12 +58,20 @@ import supabase from "@/lib/supabase"
 type Parcel = {
   id: string
   tracking_id: string
-  sender: string
-  receiver: string
+  sender?: string | null
+  receiver?: string | null
   weight?: string
-  priority: string
-  status: "pending" | "ready" | "ready-for-pickup" | "completed"
-  created_at: string
+  dimensions?: string | null
+  priority?: string | null
+  status:
+    | "pending"
+    | "ready"
+    | "ready-for-pickup"
+    | "completed"
+    | "in-transit"
+    | "delivered"
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 type StatusFilter = "all" | "ready" | "completed"
@@ -67,7 +83,6 @@ export default function CustomerDashboardPage() {
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
-  const [unreadNotifications] = useState(3)
 
   /* ===== TRACK PARCEL ===== */
   const [isTrackOpen, setIsTrackOpen] = useState(false)
@@ -75,6 +90,11 @@ export default function CustomerDashboardPage() {
   const [trackedParcel, setTrackedParcel] = useState<Parcel | null>(null)
   const [trackError, setTrackError] = useState("")
   const [loading, setLoading] = useState(false)
+  const {
+    trackingIds,
+    loading: trackingIdsLoading,
+    error: trackingIdsError,
+  } = useUserTrackingIds()
 
   /* =====================
      FETCH PARCELS
@@ -128,6 +148,8 @@ export default function CustomerDashboardPage() {
       ready: "bg-green-100 text-green-800",
       "ready-for-pickup": "bg-blue-100 text-blue-800",
       completed: "bg-emerald-100 text-emerald-800",
+      "in-transit": "bg-amber-100 text-amber-800",
+      delivered: "bg-emerald-100 text-emerald-800",
     }
 
     return (
@@ -141,6 +163,14 @@ export default function CustomerDashboardPage() {
      TRACK PARCEL LOGIC
   ===================== */
  const handleTrackParcel = async () => {
+  const trackingId = trackId.trim()
+
+  if (!trackingId) {
+    setTrackError("Please enter or select a tracking ID.")
+    setTrackedParcel(null)
+    return
+  }
+
   setLoading(true)
   setTrackError("")
   setTrackedParcel(null)
@@ -149,7 +179,7 @@ export default function CustomerDashboardPage() {
   const { data } = await supabase
     .from("parcels")
     .select("*")
-    .eq("tracking_id", trackId)
+    .eq("tracking_id", trackingId)
     .maybeSingle()
 
   if (data) {
@@ -161,7 +191,7 @@ export default function CustomerDashboardPage() {
   /* 2️⃣ Check existence via RPC */
   const { data: exists } = await supabase
     .rpc("check_parcel_exists", {
-      p_tracking_id: trackId,
+      p_tracking_id: trackingId,
     })
 
   if (exists) {
@@ -170,7 +200,7 @@ export default function CustomerDashboardPage() {
     )
   } else {
     setTrackError(
-      "Parcel not found. Please check the tracking ID."
+      "Tracking ID does not exist."
     )
   }
 
@@ -198,6 +228,18 @@ export default function CustomerDashboardPage() {
     return matchesSearch
   })
 
+  const formatDateTime = (date?: string | null) => {
+    if (!date) return "-"
+
+    return new Date(date).toLocaleString([], {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  }
+
   return (
     <SidebarProvider>
       <CustomerSidebar />
@@ -211,14 +253,6 @@ export default function CustomerDashboardPage() {
                 Customer Dashboard
               </h1>
                 <NotificationsDialog />
-              {/* <Button variant="outline" size="icon" className="relative">
-                <Bell className="h-4 w-4" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-                    {unreadNotifications}
-                  </span>
-                )}
-              </Button> */}
             </div>
           </div>
         </header>
@@ -310,7 +344,9 @@ export default function CustomerDashboardPage() {
 
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-4 w-4" />
-                          {new Date(parcel.created_at).toLocaleDateString()}
+                          {parcel.created_at
+                            ? new Date(parcel.created_at).toLocaleDateString()
+                            : "-"}
                         </div>
                       </CardContent>
                     </Card>
@@ -329,17 +365,79 @@ export default function CustomerDashboardPage() {
         </main>
 
         {/* ================= TRACK PARCEL DIALOG ================= */}
-        <Dialog open={isTrackOpen} onOpenChange={setIsTrackOpen}>
-          <DialogContent>
+        <Dialog
+          open={isTrackOpen}
+          onOpenChange={(open) => {
+            setIsTrackOpen(open)
+            if (!open) {
+              setTrackError("")
+              setTrackedParcel(null)
+            }
+          }}
+        >
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[88vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Track Parcel</DialogTitle>
+              <DialogDescription>
+                Select one of your registered tracking IDs or enter a tracking ID manually.
+              </DialogDescription>
             </DialogHeader>
 
-            <Input
-              placeholder="Enter tracking ID"
-              value={trackId}
-              onChange={(e) => setTrackId(e.target.value)}
-            />
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Registered Tracking IDs</div>
+                <Select
+                  value={trackingIds.includes(trackId) ? trackId : undefined}
+                  onValueChange={(value) => {
+                    if (value === "__empty") return
+                    setTrackId(value)
+                    setTrackError("")
+                  }}
+                  disabled={trackingIdsLoading || trackingIds.length === 0}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={
+                        trackingIdsLoading
+                          ? "Loading tracking IDs..."
+                          : trackingIds.length === 0
+                            ? "No registered tracking ID found"
+                            : "Select tracking ID"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trackingIds.length === 0 ? (
+                      <SelectItem value="__empty" disabled>
+                        No registered tracking ID found
+                      </SelectItem>
+                    ) : (
+                      trackingIds.map((id) => (
+                        <SelectItem key={id} value={id}>
+                          {id}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {trackingIdsError && (
+                  <p className="text-sm text-red-500">{trackingIdsError}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Manual Tracking ID</div>
+                <Input
+                  placeholder="Enter tracking ID"
+                  value={trackId}
+                  onChange={(e) => {
+                    setTrackId(e.target.value)
+                    setTrackError("")
+                  }}
+                />
+              </div>
+            </div>
 
             <Button onClick={handleTrackParcel} disabled={loading}>
               {loading ? "Tracking..." : "Track"}
@@ -353,18 +451,72 @@ export default function CustomerDashboardPage() {
 
             {trackedParcel && (
               <Card>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="font-semibold">
-                      {trackedParcel.tracking_id}
-                    </span>
+                <CardHeader>
+                  <CardTitle>Parcel Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="text-muted-foreground">Tracking ID</div>
+                      <div className="font-semibold">
+                        {trackedParcel.tracking_id}
+                      </div>
+                    </div>
                     {getStatusBadge(trackedParcel.status)}
                   </div>
 
-                  <p>Sender: {trackedParcel.sender}</p>
-                  <p>Receiver: {trackedParcel.receiver}</p>
-                  <p>Weight: {trackedParcel.weight || "-"}</p>
-                  <p>Priority: {trackedParcel.priority}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <div className="text-muted-foreground">Sender</div>
+                      <div className="font-medium">
+                        {trackedParcel.sender || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Receiver</div>
+                      <div className="font-medium">
+                        {trackedParcel.receiver || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">
+                        Pickup / Delivery Status
+                      </div>
+                      <div className="font-medium capitalize">
+                        {trackedParcel.status.replace("-", " ")}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Priority</div>
+                      <div className="font-medium">
+                        {trackedParcel.priority || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Weight</div>
+                      <div className="font-medium">
+                        {trackedParcel.weight || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Dimensions</div>
+                      <div className="font-medium">
+                        {trackedParcel.dimensions || "-"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Registered Date</div>
+                      <div className="font-medium">
+                        {formatDateTime(trackedParcel.created_at)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Last Updated</div>
+                      <div className="font-medium">
+                        {formatDateTime(trackedParcel.updated_at)}
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}

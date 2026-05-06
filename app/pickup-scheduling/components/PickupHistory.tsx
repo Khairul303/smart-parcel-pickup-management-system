@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Edit, Trash2, RefreshCw, Search } from "lucide-react"
+import { Edit, Trash2, Search } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -43,7 +43,6 @@ export function PickupHistory({
   pickups,
   onEdit,
   onCancel,
-  onReschedule,
 }: PickupHistoryProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -126,14 +125,14 @@ export function PickupHistory({
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 placeholder="Search pickups..."
-                className="w-full sm:w-[180px] pl-10"
+                className="w-full sm:w-45 pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[140px]">
+              <SelectTrigger className="w-full sm:w-35">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -154,14 +153,14 @@ export function PickupHistory({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[110px]">ID</TableHead>
-                <TableHead className="w-[150px]">Date & Time</TableHead>
-                <TableHead className="w-[90px]">Queue</TableHead>
-                <TableHead className="w-[120px]">Est. Wait</TableHead>
-                <TableHead className="min-w-[150px]">Parcel</TableHead>
-                <TableHead className="min-w-[200px]">Address</TableHead>
-                <TableHead className="w-[120px]">Status</TableHead>
-                <TableHead className="w-[160px] text-right">Actions</TableHead>
+                <TableHead className="w-27.5">ID</TableHead>
+                <TableHead className="w-37.5">Date & Time</TableHead>
+                <TableHead className="w-22.5">Queue</TableHead>
+                <TableHead className="w-30">Est. Wait</TableHead>
+                <TableHead className="min-w-37.5">Parcel</TableHead>
+                <TableHead className="min-w-50">Address</TableHead>
+                <TableHead className="w-30">Status</TableHead>
+                <TableHead className="w-40 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -191,11 +190,11 @@ export function PickupHistory({
                     {getEstimatedWait(pickup.queueNumber)}
                   </TableCell>
 
-                  <TableCell className="max-w-[200px] truncate">
+                  <TableCell className="max-w-50 truncate">
                     {pickup.parcelDetails}
                   </TableCell>
 
-                  <TableCell className="max-w-[250px] truncate">
+                  <TableCell className="max-w-62.5 truncate">
                     {pickup.pickupAddress}
                   </TableCell>
 
@@ -214,19 +213,6 @@ export function PickupHistory({
                         }
                       >
                         <Edit className="h-4 w-4" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => onReschedule(pickup)}
-                        disabled={
-                          pickup.status === "collected" ||
-                          pickup.status === "cancelled"
-                        }
-                      >
-                        <RefreshCw className="h-4 w-4" />
                       </Button>
 
                       <Button

@@ -1,4 +1,4 @@
-import { Clock, Truck, CheckCircle, Package, AlertCircle, Tag } from "lucide-react";
+import { Clock, CheckCircle, Package, AlertCircle, Tag } from "lucide-react";
 
 /* ---------------- STATUS CONFIG ---------------- */
 

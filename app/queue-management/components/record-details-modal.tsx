@@ -13,8 +13,6 @@ import {
   Calendar,
   Clock,
   Package,
-  ClipboardCheck,
-  CheckCircle,
 } from "lucide-react"
 import { Pickup, statusConfig, preparationConfig } from "../types"
 

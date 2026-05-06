@@ -18,7 +18,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Bell, ChevronRight, RefreshCw, CheckCircle } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
 
 // Import local types and config
 import { PickupRecord } from "./types"

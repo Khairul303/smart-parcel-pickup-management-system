@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   SidebarInset,
@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 
-import { QuickActions } from "./components/QuickActions";
 import { ParcelTable } from "./components/ParcelTable";
 import { ParcelFormDialog } from "./components/ParcelFormDialog";
 import { StatusPanel } from "./components/StatusPanel";
@@ -259,29 +258,6 @@ const handleScanSuccess = async (trackingId: string) => {
     if (!confirm("Delete this parcel?")) return;
     await supabase.from("parcels").delete().eq("id", parcel.id);
     setParcels((prev) => prev.filter((p) => p.id !== parcel.id));
-  };
-
-  /* 📤 EXPORT */
-  const handleExportData = () => {
-    const csv = [
-      ["Tracking ID", "Sender", "Receiver", "Status"],
-      ...parcels.map((p) => [
-        p.tracking_id,
-        p.sender,
-        p.receiver,
-        p.status,
-      ]),
-    ]
-      .map((r) => r.join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "parcels.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (

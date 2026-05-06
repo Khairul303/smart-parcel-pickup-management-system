@@ -164,7 +164,7 @@ export function ParcelTable({
                           {statusConfig[parcel.status].label}
                         </Badge>
                       )}
-                      {/* {PriorityIcon && (
+                      {PriorityIcon && (
                         <Badge
                           variant="outline"
                           className={`gap-1 mt-1 ${priorityConfig[parcel.priority].color}`}
@@ -172,7 +172,7 @@ export function ParcelTable({
                           <PriorityIcon className="h-3 w-3" />
                           {parcel.priority}
                         </Badge>
-                      )} */}
+                      )}
                     </TableCell>
 
                     {/* Details */}

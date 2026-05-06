@@ -18,22 +18,6 @@ export default function ForgotPasswordPage() {
     setError(null);
     setMessage(null);
 
-    // 1️⃣ Get user by email
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq(
-        "id",
-        (
-          await supabase.auth.getUser()
-        ).data.user?.id
-      );
-
-    // ❌ We cannot get role by email directly from auth
-    // So instead we use admin rule:
-    // Admins are NOT allowed to reset password via email
-
-    // 2️⃣ Send reset link (CUSTOMER ONLY)
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/login/reset-password`,
     });

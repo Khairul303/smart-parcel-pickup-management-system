@@ -263,7 +263,7 @@ export default function PickupManagementPage() {
         </header>
 
         {/* CONTENT */}
-        <main className="p-6 space-y-6 bg-gradient-to-b from-gray-50/50 to-white min-h-screen">
+        <main className="p-6 space-y-6 bg-linear-to-b from-gray-50/50 to-white min-h-screen">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard
               title="Total Pickups"

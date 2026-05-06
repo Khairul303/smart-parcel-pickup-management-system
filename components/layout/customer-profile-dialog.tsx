@@ -21,7 +21,6 @@ import {
   Phone,
   Calendar,
   CheckCircle,
-  X,
 } from "lucide-react"
 
 /* -------------------------------------------------------------------------- */

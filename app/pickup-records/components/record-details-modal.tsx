@@ -1,8 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { MapPin, Calendar, Phone, Mail, Package, Scale, Ruler, DollarSign, Clock, User, Truck, CheckCircle, XCircle, X } from "lucide-react"
+import { MapPin, Calendar, Phone, Package, Scale, Ruler, DollarSign, Clock, User } from "lucide-react"
 import { PickupRecord, statusConfig } from "../types"
 import {
   Dialog,

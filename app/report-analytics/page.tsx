@@ -19,9 +19,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   Bell,
-  TrendingUp,
   TrendingDown,
-  Download,
   Calendar,
   Users,
   Package,
@@ -41,7 +39,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,

@@ -7,8 +7,6 @@ interface StatsPanelProps {
 }
 
 export function StatsPanel({ parcels }: StatsPanelProps) {
-  const today = new Date().toDateString();
-
   const newParcels = parcels.length;
   const updated = parcels.filter(p => p.status !== "pending").length;
   const scanned = parcels.filter(p => p.qrCode).length;

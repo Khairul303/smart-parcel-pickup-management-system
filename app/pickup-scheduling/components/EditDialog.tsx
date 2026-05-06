@@ -31,7 +31,7 @@ export function EditDialog({
   const [parcelDetails, setParcelDetails] = useState(
     pickup?.parcelDetails ?? ""
   )
-  const [specialInstructions, setSpecialInstructions] = useState(
+  const [specialInstructions] = useState(
     pickup?.specialInstructions ?? ""
   )
 
