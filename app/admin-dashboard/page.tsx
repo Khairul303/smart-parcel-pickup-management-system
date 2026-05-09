@@ -104,7 +104,7 @@ export default function AdminDashboardPage() {
       <SidebarInset>
         <HeaderSection />
 
-        <main className="flex-1 space-y-6 p-6">
+        <main className="min-w-0 flex-1 space-y-6 p-4 md:p-6">
           <WelcomeSection />
 
           <SearchFilterSection onAddParcel={handleAddParcel} />
@@ -113,7 +113,7 @@ export default function AdminDashboardPage() {
 
           <TodayActivitySection />
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-w-0 gap-6 md:grid-cols-2 lg:grid-cols-3">
             <RecentParcelsSection />
             <PerformanceMetricsSection />
             <QuickActionsSection />

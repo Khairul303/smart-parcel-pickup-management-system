@@ -8,7 +8,7 @@ import { Package as PackageIcon } from "lucide-react"
 
 
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 
 import supabase from "@/lib/supabase"
 
@@ -102,9 +102,12 @@ Receiver: ${parcel.receiver}`
         <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
           <div className="px-4 md:px-8">
             <div className="flex h-16 items-center justify-between">
-              <h1 className="text-xl font-semibold text-gray-900">
-                My Parcels
-              </h1>
+              <div className="flex min-w-0 items-center gap-3">
+                <SidebarTrigger className="md:hidden" />
+                <h1 className="truncate text-xl font-semibold text-gray-900">
+                  My Parcels
+                </h1>
+              </div>
 
               {/* <div className="flex items-center gap-4">
                 <Button variant="outline" size="icon" className="relative">
@@ -121,9 +124,9 @@ Receiver: ${parcel.receiver}`
         </header>
 
         {/* ================= MAIN ================= */}
-        <main className="px-4 md:px-8 py-6 w-full">
+        <main className="w-full min-w-0 px-4 py-6 md:px-8">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               Welcome back 👋
             </h2>
             <p className="mt-2 text-gray-600">
@@ -132,7 +135,7 @@ Receiver: ${parcel.receiver}`
           </div>
 
           {/* ================= STATS ================= */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "Total Parcel", value: stats.total },
               { label: "Not Arrived", value: stats.notArrived },
@@ -141,9 +144,9 @@ Receiver: ${parcel.receiver}`
             ].map((item) => (
               <div
                 key={item.label}
-                className="bg-white p-6 rounded-lg border shadow-sm"
+                className="rounded-lg border bg-white p-4 shadow-sm sm:p-6"
               >
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm text-gray-600">
                       {item.label}

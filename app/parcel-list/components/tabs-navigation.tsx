@@ -39,21 +39,22 @@ export function TabsNavigation({
       value={activeTab}
       onValueChange={(value) => onTabChange(value as ParcelTab)}
     >
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="all">
-          All ({counts.all})
+      <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
+        <TabsTrigger value="all" className="min-w-0 text-xs sm:text-sm">
+          All <span className="ml-1">({counts.all})</span>
         </TabsTrigger>
 
-        <TabsTrigger value="notarrived">
-          Not Arrived ({counts.notarrived})
+        <TabsTrigger value="notarrived" className="min-w-0 text-xs sm:text-sm">
+          Not Arrived <span className="ml-1">({counts.notarrived})</span>
         </TabsTrigger>
 
-        <TabsTrigger value="postcenter">
-          Ready to Pickup ({counts.postcenter})
+        <TabsTrigger value="postcenter" className="min-w-0 text-xs sm:text-sm">
+          <span className="truncate">Ready to Pickup</span>
+          <span className="ml-1">({counts.postcenter})</span>
         </TabsTrigger>
 
-        <TabsTrigger value="completed">
-          Completed ({counts.completed})
+        <TabsTrigger value="completed" className="min-w-0 text-xs sm:text-sm">
+          Completed <span className="ml-1">({counts.completed})</span>
         </TabsTrigger>
       </TabsList>
     </Tabs>

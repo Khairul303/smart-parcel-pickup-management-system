@@ -15,10 +15,10 @@ import { Button } from "@/components/ui/button";
 
 export function HeaderSection() {
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-6">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-40 flex min-h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-3 py-2 sm:px-4 md:px-6">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
         <SidebarTrigger className="-ml-2" />
-        <Separator orientation="vertical" className="mr-2 h-6" />
+        <Separator orientation="vertical" className="mr-2 hidden h-6 sm:block" />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem className="hidden md:block">
@@ -32,14 +32,14 @@ export function HeaderSection() {
         </Breadcrumb>
       </div>
       
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <Button variant="outline" size="icon" className="relative">
           <Bell className="h-4 w-4" />
           <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
         </Button>
         <Button variant="outline" size="sm">
           <Download className="mr-2 h-4 w-4" />
-          Export Report
+          <span className="hidden sm:inline">Export Report</span>
         </Button>
       </div>
     </header>

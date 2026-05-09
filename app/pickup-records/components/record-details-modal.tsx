@@ -22,7 +22,7 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90svh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -44,12 +44,12 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
                 <Avatar className="h-12 w-12">
                   <AvatarFallback className="text-lg">{record.customer.avatar}</AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="min-w-0">
                   <div className="font-semibold">{record.customer.name}</div>
-                  <div className="text-sm text-muted-foreground">{record.customer.email}</div>
+                  <div className="break-all text-sm text-muted-foreground">{record.customer.email}</div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{record.customer.phone}</span>
@@ -70,7 +70,7 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
               <Clock className="h-4 w-4" />
               Queue & Timing
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="text-sm font-medium">Queue Number</div>
                 <div className="text-2xl font-bold text-blue-600">
@@ -117,7 +117,7 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
               <Package className="h-4 w-4" />
               Parcel Details
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-muted-foreground" />
@@ -150,7 +150,7 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end sm:gap-3">
             <Button variant="outline" onClick={onClose}>
               Close
             </Button>

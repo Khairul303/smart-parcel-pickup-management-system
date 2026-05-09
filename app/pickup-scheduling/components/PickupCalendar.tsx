@@ -167,7 +167,7 @@ export function PickupCalendar({
         {/* DATE SELECTION */}
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-4">Select Pickup Date</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
             {availableDates.map((d) => (
               <button
                 key={d.date}
@@ -242,7 +242,7 @@ export function PickupCalendar({
         {(selectedDate || selectedTimeSlot) && (
           <Card className="mb-6">
             <CardContent className="p-4">
-              <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
                   <h4 className="font-semibold">Selected Appointment</h4>
                   <div className="flex items-center gap-2 text-sm">
@@ -257,6 +257,7 @@ export function PickupCalendar({
                 <Button
                   onClick={onBookingOpen}
                   disabled={!selectedDate || !selectedTimeSlot}
+                  className="w-full sm:w-auto"
                 >
                   Continue Booking
                 </Button>

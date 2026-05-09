@@ -2,6 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { PickupSchedule } from "./PickupScheduling"
+import { isUpcomingPickupStatus, normalizePickupStatus } from "@/lib/pickup-status"
 
 interface PickupStatsProps {
   pickups: PickupSchedule[]
@@ -9,11 +10,14 @@ interface PickupStatsProps {
 
 export function PickupStats({ pickups }: PickupStatsProps) {
   const totalPickups = pickups.length
-  const completedPickups = pickups.filter(
-    (p) => p.status === "collected"
+  const collectedPickups = pickups.filter(
+    (p) => normalizePickupStatus(p.status) === "collected"
   ).length
   const upcomingPickups = pickups.filter(
-    (p) => p.status === "booked" || p.status === "checked_in"
+    (p) => isUpcomingPickupStatus(p.status)
+  ).length
+  const cancelledPickups = pickups.filter(
+    (p) => normalizePickupStatus(p.status) === "cancelled"
   ).length
 
   return (
@@ -32,13 +36,13 @@ export function PickupStats({ pickups }: PickupStatsProps) {
         
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm">Completed</span>
+            <span className="text-sm">Collected</span>
             <span className="font-semibold text-green-600">
-              {completedPickups}
+              {collectedPickups}
             </span>
           </div>
           <Progress 
-            value={totalPickups > 0 ? (completedPickups / totalPickups) * 100 : 0} 
+            value={totalPickups > 0 ? (collectedPickups / totalPickups) * 100 : 0} 
             className="h-2"
           />
         </div>
@@ -52,6 +56,19 @@ export function PickupStats({ pickups }: PickupStatsProps) {
           </div>
           <Progress 
             value={totalPickups > 0 ? (upcomingPickups / totalPickups) * 100 : 0} 
+            className="h-2"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Cancelled</span>
+            <span className="font-semibold text-red-600">
+              {cancelledPickups}
+            </span>
+          </div>
+          <Progress
+            value={totalPickups > 0 ? (cancelledPickups / totalPickups) * 100 : 0}
             className="h-2"
           />
         </div>

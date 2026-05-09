@@ -46,9 +46,9 @@ export function ParcelFormDialog({
 }: ParcelFormDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90svh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">
+          <DialogTitle className="text-xl sm:text-2xl">
             {selectedParcel
               ? isManualEntry
                 ? "Update Parcel"
@@ -65,10 +65,10 @@ export function ParcelFormDialog({
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="details">Parcel Details</TabsTrigger>
-            <TabsTrigger value="sender">Sender Info</TabsTrigger>
-            <TabsTrigger value="receiver">Receiver Info</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3">
+            <TabsTrigger value="details" className="text-xs sm:text-sm">Parcel Details</TabsTrigger>
+            <TabsTrigger value="sender" className="text-xs sm:text-sm">Sender Info</TabsTrigger>
+            <TabsTrigger value="receiver" className="text-xs sm:text-sm">Receiver Info</TabsTrigger>
           </TabsList>
 
           {/* ================= PARCEL DETAILS ================= */}

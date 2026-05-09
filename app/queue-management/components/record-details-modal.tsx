@@ -32,7 +32,7 @@ export function RecordDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90svh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Pickup Record Details</DialogTitle>
           <DialogDescription>
@@ -67,7 +67,7 @@ export function RecordDetailsModal({
               Queue & Schedule
             </h3>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <div className="text-muted-foreground">Queue Number</div>
                 <div className="text-xl font-bold">
@@ -137,7 +137,7 @@ export function RecordDetailsModal({
           </div>
 
           {/* ACTIONS */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="flex justify-end gap-2 border-t pt-4">
             <Button variant="outline" onClick={onClose}>
               Close
             </Button>

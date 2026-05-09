@@ -18,12 +18,12 @@ export function SearchFilterSection({ onAddParcel }: SearchFilterSectionProps) {
           className="w-full rounded-lg border bg-background pl-10 pr-4 py-2 md:w-[400px]"
         />
       </div>
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm">
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <Button variant="outline" size="sm" className="w-full sm:w-auto">
           <Filter className="mr-2 h-4 w-4" />
           Filter
         </Button>
-        <Button size="sm" onClick={onAddParcel}>
+        <Button size="sm" onClick={onAddParcel} className="w-full sm:w-auto">
           Add New Parcel
         </Button>
       </div>

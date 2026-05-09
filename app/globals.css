@@ -167,6 +167,7 @@
 @layer base {
     html {
         font-size: 14px;
+        overflow-x: hidden;
     }
 
     * {
@@ -174,6 +175,27 @@
     }
     body {
         @apply bg-background text-foreground;
+        overflow-x: hidden;
+    }
+
+    img,
+    svg,
+    canvas,
+    video {
+        max-width: 100%;
+    }
+
+    p,
+    span,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    td,
+    th {
+        overflow-wrap: break-word;
     }
 
     @keyframes marquee {

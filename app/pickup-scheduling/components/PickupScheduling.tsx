@@ -8,6 +8,11 @@ import { CustomerInfo } from "./CustomerInfo"
 import { PickupStats } from "./PickupStats"
 import { BookingDialog } from "./BookingDialog"
 import { EditDialog } from "./EditDialog"
+import {
+  isUpcomingPickupStatus,
+  normalizePickupStatus,
+} from "@/lib/pickup-status"
+import type { PickupStatus } from "@/lib/pickup-status"
 
 // ======================
 // TYPES
@@ -16,7 +21,7 @@ export interface PickupSchedule {
   id: string
   date: string
   timeSlot: string
-  status: "booked" | "checked_in" | "collected" | "cancelled" | "no_show"
+  status: PickupStatus
   customerName: string
   customerPhone: string
   customerEmail: string
@@ -62,6 +67,16 @@ export function PickupScheduling({
 
   // 🔄 Refresh key
   const [refreshKey, setRefreshKey] = useState(0)
+
+  const upcomingCount = pickupHistory.filter((p) =>
+    isUpcomingPickupStatus(p.status)
+  ).length
+  const collectedCount = pickupHistory.filter(
+    (p) => normalizePickupStatus(p.status) === "collected"
+  ).length
+  const cancelledCount = pickupHistory.filter(
+    (p) => normalizePickupStatus(p.status) === "cancelled"
+  ).length
 
   // ======================
   // LOAD USER EMAIL
@@ -165,6 +180,7 @@ export function PickupScheduling({
         updated_at: new Date().toISOString(),
       })
       .eq("pickup_code", updatedPickup.id)
+      .eq("customer_email", userEmail)
 
     if (error) {
       alert("Failed to update booking")
@@ -189,6 +205,7 @@ export function PickupScheduling({
         updated_at: new Date().toISOString(),
       })
       .eq("pickup_code", pickupId)
+      .eq("customer_email", userEmail)
 
     if (error) {
       alert("Failed to cancel booking")
@@ -207,9 +224,9 @@ export function PickupScheduling({
   // ======================
   return (
     <>
-      <main className="min-h-screen bg-gray-50/50">
-        <div className="p-4 md:p-6">
-          <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <main className="min-h-screen min-w-0 bg-gray-50/50">
+        <div className="w-full min-w-0 space-y-6 p-3 sm:p-4 md:p-6">
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-lg border shadow-sm">
               <div className="text-sm text-gray-500">Total Pickups</div>
               <div className="text-2xl font-bold">{pickupHistory.length}</div>
@@ -217,19 +234,25 @@ export function PickupScheduling({
             <div className="bg-white p-4 rounded-lg border shadow-sm">
               <div className="text-sm text-gray-500">Upcoming</div>
               <div className="text-2xl font-bold text-blue-600">
-                {pickupHistory.filter((p) => p.status === "booked").length}
+                {upcomingCount}
               </div>
             </div>
             <div className="bg-white p-4 rounded-lg border shadow-sm">
-              <div className="text-sm text-gray-500">Completed</div>
+              <div className="text-sm text-gray-500">Collected</div>
               <div className="text-2xl font-bold text-green-600">
-                {pickupHistory.filter((p) => p.status === "collected").length}
+                {collectedCount}
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border shadow-sm">
+              <div className="text-sm text-gray-500">Cancelled</div>
+              <div className="text-2xl font-bold text-red-600">
+                {cancelledCount}
               </div>
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid min-w-0 gap-6 xl:grid-cols-3">
+            <div className="min-w-0 xl:col-span-2">
               <PickupCalendar
                 selectedDate={selectedDate}
                 selectedTimeSlot={selectedTimeSlot}
@@ -238,27 +261,27 @@ export function PickupScheduling({
                 onBookingOpen={handleOpenBookingDialog}
                 refreshKey={refreshKey}
               />
-
-              <PickupHistory
-                pickups={pickupHistory}
-                onEdit={(pickup) => {
-                  setEditingPickup(pickup)
-                  setIsEditDialogOpen(true)
-                }}
-                onCancel={handleCancelBooking}
-                onReschedule={(pickup) => {
-                  setSelectedDate(pickup.date)
-                  setSelectedTimeSlot(pickup.timeSlot)
-                  onBookingDialogChange?.(true)
-                }}
-              />
             </div>
 
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               <CustomerInfo />
               <PickupStats pickups={pickupHistory} />
             </div>
           </div>
+
+          <PickupHistory
+            pickups={pickupHistory}
+            onEdit={(pickup) => {
+              setEditingPickup(pickup)
+              setIsEditDialogOpen(true)
+            }}
+            onCancel={handleCancelBooking}
+            onReschedule={(pickup) => {
+              setSelectedDate(pickup.date)
+              setSelectedTimeSlot(pickup.timeSlot)
+              onBookingDialogChange?.(true)
+            }}
+          />
         </div>
 
         <BookingDialog

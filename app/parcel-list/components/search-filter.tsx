@@ -22,9 +22,9 @@ export function SearchFilter({
   onStatusFilterChange,
 }: SearchFilterProps) {
   return (
-    <div className="flex flex-col sm:flex-row gap-4">
+    <div className="flex flex-col gap-4 sm:flex-row">
       {/* Search Input */}
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input

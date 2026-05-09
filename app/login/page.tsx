@@ -11,8 +11,7 @@ export default function LoginPage() {
             <Package className="h-6 w-6 text-white" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900">ParcelFlow</h1>
-            <p className="text-sm text-gray-600 mt-1">Smart Parcel Management System</p>
+            <h1 className="text-2xl font-bold text-gray-900">POSTCENTRE BATU PAHAT</h1>
           </div>
         </div>
 
@@ -29,7 +28,7 @@ export default function LoginPage() {
             <a href="#" className="hover:text-gray-700 transition-colors">About</a>
           </div>
           <p className="text-xs text-gray-400 mt-4">
-            © 2024 ParcelFlow. All rights reserved.
+            © 2024 POSTCENTRE BATU PAHAT. All rights reserved.
           </p>
         </div>
       </div>

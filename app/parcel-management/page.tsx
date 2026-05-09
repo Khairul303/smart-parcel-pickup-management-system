@@ -265,10 +265,10 @@ const handleScanSuccess = async (trackingId: string) => {
       <AppSidebar />
       <SidebarInset>
         {/* HEADER */}
-        <header className="flex h-16 items-center justify-between border-b px-6">
-          <div className="flex items-center gap-4">
+        <header className="flex min-h-16 items-center justify-between gap-3 border-b px-3 py-2 sm:px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <SidebarTrigger />
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="hidden h-6 sm:block" />
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -289,8 +289,8 @@ const handleScanSuccess = async (trackingId: string) => {
         </header>
 
         {/* CONTENT */}
-        <main className="p-6 space-y-6 bg-gray-50">
-          <h1 className="text-3xl font-bold">Parcel Management</h1>
+        <main className="min-w-0 space-y-6 bg-gray-50 p-4 md:p-6">
+          <h1 className="text-2xl font-bold sm:text-3xl">Parcel Management</h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <StatsPanel parcels={parcels} />

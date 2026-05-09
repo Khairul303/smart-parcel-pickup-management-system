@@ -19,10 +19,10 @@ export function ParcelCard({
   onRequestRedelivery,
 }: ParcelCardProps) {
   return (
-    <Card className="hover:shadow transition">
-      <CardContent className="p-6 flex justify-between items-center">
-        <div>
-          <div className="font-bold">{parcel.tracking_id}</div>
+    <Card className="transition hover:shadow">
+      <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="min-w-0">
+          <div className="break-all font-bold">{parcel.tracking_id}</div>
           <div className="text-sm text-gray-600">
             {parcel.sender} → {parcel.receiver}
           </div>
@@ -31,8 +31,8 @@ export function ParcelCard({
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => onViewDetails(parcel)}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button size="sm" onClick={() => onViewDetails(parcel)} className="w-full sm:w-auto">
             <Eye className="h-4 w-4 mr-1" /> Details
           </Button>
 
@@ -40,6 +40,7 @@ export function ParcelCard({
             <Button
               size="sm"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => onExtendPickup(parcel.id)}
             >
               Extend Pickup
@@ -50,6 +51,7 @@ export function ParcelCard({
             <Button
               size="sm"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => onRequestRedelivery(parcel.id)}
             >
               <Truck className="h-4 w-4 mr-1" />

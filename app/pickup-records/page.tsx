@@ -113,10 +113,10 @@ export default function PickupRecordsPage() {
 
       <SidebarInset>
         {/* HEADER */}
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-10 flex min-h-16 items-center justify-between gap-3 border-b bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <SidebarTrigger />
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="hidden h-6 sm:block" />
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -133,7 +133,7 @@ export default function PickupRecordsPage() {
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Button 
               variant="outline" 
               size="icon" 
@@ -149,17 +149,17 @@ export default function PickupRecordsPage() {
               disabled={isRefreshing}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         </header>
 
         {/* CONTENT */}
-        <main className="p-6 space-y-6 bg-gradient-to-b from-gray-50/50 to-white min-h-screen">
+        <main className="min-h-screen min-w-0 space-y-6 bg-gradient-to-b from-gray-50/50 to-white p-4 md:p-6">
           {/* HEADER SECTION */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Pickup Records</h1>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Pickup Records</h1>
               <p className="text-muted-foreground mt-1">
                 Historical pickup records organized by queue and status
               </p>

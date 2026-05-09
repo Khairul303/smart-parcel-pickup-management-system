@@ -79,7 +79,7 @@ export function ParcelsList({
   const hasSearchOrFilter = searchQuery || statusFilter !== "all"
 
   return (
-    <Card className="shadow-sm border-gray-200">
+    <Card className="min-w-0 border-gray-200 shadow-sm">
       <CardHeader className="pb-4 border-b border-gray-100">
         <CardTitle className="text-2xl font-bold">
           My Parcels
@@ -96,7 +96,7 @@ export function ParcelsList({
         />
       </CardHeader>
 
-      <CardContent className="pt-6">
+      <CardContent className="min-w-0 pt-6">
         <TabsNavigation
           activeTab={activeTab}
           onTabChange={setActiveTab}

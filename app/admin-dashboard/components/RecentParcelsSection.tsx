@@ -16,8 +16,8 @@ export function RecentParcelsSection() {
   return (
     <Card className="md:col-span-2">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <CardTitle>Recent Parcels</CardTitle>
             <CardDescription>Latest parcel activities and status</CardDescription>
           </div>
@@ -29,9 +29,9 @@ export function RecentParcelsSection() {
       <CardContent>
         <div className="space-y-4">
           {recentParcels.map((parcel) => (
-            <div key={parcel.id} className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
+            <div key={parcel.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{parcel.id}</span>
                   <Badge 
                     variant={
@@ -45,7 +45,7 @@ export function RecentParcelsSection() {
                 </div>
                 <p className="text-sm text-muted-foreground">{parcel.customer}</p>
               </div>
-              <div className="text-right">
+              <div className="min-w-0 text-left sm:text-right">
                 <p className="text-sm font-medium">{parcel.location}</p>
                 <p className="text-xs text-muted-foreground">{parcel.time}</p>
               </div>

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { PickupSchedule } from "./PickupScheduling"
+import { PICKUP_STATUS } from "@/lib/pickup-status"
 
 interface Props {
   isOpen: boolean
@@ -144,7 +145,7 @@ export function BookingDialog({
       id: "",
       date: selectedDate,
       timeSlot: selectedTimeSlot,
-      status: "booked",
+      status: PICKUP_STATUS.BOOKED,
       customerName: profile.full_name,
       customerPhone: profile.no_telephone,
       customerEmail: profile.email,
@@ -164,7 +165,7 @@ export function BookingDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90svh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Confirm Pickup</DialogTitle>
           <DialogDescription>
@@ -174,7 +175,7 @@ export function BookingDialog({
 
         {/* DATE + TIME + QUEUE */}
         <Card>
-          <CardContent className="p-4 grid grid-cols-2 gap-4">
+          <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               {selectedDate}
@@ -186,11 +187,11 @@ export function BookingDialog({
 
             {queuePreview !== null && (
               <>
-                <div className="col-span-2 text-sm font-medium text-blue-600">
+                <div className="sm:col-span-2 text-sm font-medium text-blue-600">
                   Estimated Queue Number: Q-
                   {String(queuePreview).padStart(3, "0")}
                 </div>
-                <div className="col-span-2 text-xs text-muted-foreground">
+                <div className="sm:col-span-2 text-xs text-muted-foreground">
                   Estimated waiting time: ~{estimatedWait} minutes
                 </div>
               </>

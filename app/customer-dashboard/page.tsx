@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
 
 import { StatsCards } from "./components/StatsCards"
@@ -305,26 +305,29 @@ export default function CustomerDashboardPage() {
         <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
           <div className="px-4 md:px-8">
             <div className="flex h-16 items-center justify-between">
-              <h1 className="text-xl font-semibold">
-                Customer Dashboard
-              </h1>
+              <div className="flex min-w-0 items-center gap-3">
+                <SidebarTrigger className="md:hidden" />
+                <h1 className="truncate text-xl font-semibold">
+                  Customer Dashboard
+                </h1>
+              </div>
                 <NotificationsDialog />
             </div>
           </div>
         </header>
 
         {/* ================= MAIN ================= */}
-        <main className="p-4 md:p-8 space-y-8">
+        <main className="min-w-0 space-y-8 p-4 md:p-8">
           {/* Welcome */}
-          <div className="flex flex-col md:flex-row md:justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-bold">Welcome back 👋</h2>
+          <div className="flex flex-col gap-4 md:flex-row md:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-2xl font-bold sm:text-3xl">Welcome back 👋</h2>
               <p className="text-sm text-muted-foreground">
                 Here’s an overview of your parcel activity
               </p>
             </div>
 
-            <Button onClick={() => setIsTrackOpen(true)}>
+            <Button onClick={() => setIsTrackOpen(true)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Track Parcel
             </Button>
@@ -334,14 +337,15 @@ export default function CustomerDashboardPage() {
           <StatsCards stats={stats} />
 
           {/* ================= GRID ================= */}
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-3">
             {/* LEFT */}
-            <div className="lg:col-span-2">
+            <div className="min-w-0 lg:col-span-2">
               <Card>
                 <CardHeader>
                   <CardTitle>My Parcels</CardTitle>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row">
                     <Input
+                      className="min-w-0"
                       placeholder="Search by tracking ID..."
                       value={searchQuery}
                       onChange={(e) =>
@@ -352,7 +356,7 @@ export default function CustomerDashboardPage() {
                     {/* FILTER DROPDOWN */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline">
+                        <Button variant="outline" className="w-full justify-between sm:w-auto">
                           <Filter className="mr-2 h-4 w-4" />
                           Filter: {getFilterLabel()}
                           <ChevronDown className="ml-2 h-4 w-4" />
@@ -378,8 +382,8 @@ export default function CustomerDashboardPage() {
                   {filteredParcels.map((parcel) => (
                     <Card key={parcel.id} className="hover:shadow">
                       <CardContent className="p-6 space-y-3">
-                        <div className="flex justify-between">
-                          <span className="font-semibold">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="break-all font-semibold">
                             {parcel.tracking_id}
                           </span>
                           {getStatusBadge(parcel.status)}
@@ -389,7 +393,7 @@ export default function CustomerDashboardPage() {
                           From: {parcel.sender}
                         </p>
 
-                        <div className="flex justify-between text-sm">
+                        <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                           <span>
                             Weight: {parcel.weight || "-"}
                           </span>
@@ -412,7 +416,7 @@ export default function CustomerDashboardPage() {
             </div>
 
             {/* RIGHT */}
-            <div className="space-y-6 sticky top-20">
+            <div className="min-w-0 space-y-6 lg:sticky lg:top-20">
               <QueueStatus />
               <RecentActivity />
               <PeakTime />

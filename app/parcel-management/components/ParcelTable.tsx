@@ -64,7 +64,7 @@ export function ParcelTable({
   priorityConfig,
 }: ParcelTableProps) {
   return (
-    <Card className="border-gray-200 shadow-sm">
+    <Card className="min-w-0 border-gray-200 shadow-sm">
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -76,13 +76,13 @@ export function ParcelTable({
             </CardDescription>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
             {/* Search */}
-            <div className="relative">
+            <div className="relative w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search parcels..."
-                className="pl-10 w-48 border-gray-300"
+                className="w-full border-gray-300 pl-10"
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
               />
@@ -90,7 +90,7 @@ export function ParcelTable({
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-              <SelectTrigger className="w-36 border-gray-300">
+              <SelectTrigger className="w-full border-gray-300 sm:w-40">
                 <Filter className="h-4 w-4 mr-2 text-gray-500" />
                 <SelectValue placeholder="Filter Status" />
               </SelectTrigger>
@@ -105,16 +105,98 @@ export function ParcelTable({
         </div>
       </CardHeader>
 
-      <CardContent>
-        <div className="rounded-lg border border-gray-200 overflow-hidden">
-          <Table>
+      <CardContent className="min-w-0">
+        <div className="space-y-3 md:hidden">
+          {parcels.map((parcel) => {
+            const StatusIcon = statusConfig[parcel.status]?.icon;
+            const PriorityIcon = priorityConfig[parcel.priority]?.icon;
+
+            return (
+              <div key={parcel.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="mb-3 flex flex-col gap-2">
+                  <div className="break-all font-medium text-gray-900">
+                    {parcel.tracking_id}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {StatusIcon && (
+                      <Badge
+                        variant="outline"
+                        className={`gap-1.5 ${statusConfig[parcel.status].color}`}
+                      >
+                        <StatusIcon className="h-3 w-3" />
+                        {statusConfig[parcel.status].label}
+                      </Badge>
+                    )}
+                    {PriorityIcon && (
+                      <Badge
+                        variant="outline"
+                        className={`gap-1 ${priorityConfig[parcel.priority].color}`}
+                      >
+                        <PriorityIcon className="h-3 w-3" />
+                        {parcel.priority}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-gray-500">Sender / Receiver</div>
+                    <div className="font-medium text-gray-900">{parcel.sender}</div>
+                    <div className="text-gray-600">→ {parcel.receiver}</div>
+                    <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                      <Phone className="h-3 w-3" />
+                      {parcel.receiverPhone}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Details</div>
+                    <div className="flex items-center gap-2">
+                      <Weight className="h-3 w-3 text-gray-400" />
+                      <span>{parcel.weight}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Ruler className="h-3 w-3 text-gray-400" />
+                      <span>{parcel.dimensions}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => onViewParcel(parcel)}>
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => onEdit(parcel)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 w-9 p-0 text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={() => onDelete(parcel)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+          {parcels.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-500">
+              No parcels found
+            </div>
+          )}
+        </div>
+
+        <div className="hidden rounded-lg border border-gray-200 md:block">
+          <Table className="w-full table-fixed">
             <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead>Parcel ID</TableHead>
-                <TableHead>Sender / Receiver</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[22%]">Parcel ID</TableHead>
+                <TableHead className="w-[28%]">Sender / Receiver</TableHead>
+                <TableHead className="w-[20%]">Status</TableHead>
+                <TableHead className="w-[18%]">Details</TableHead>
+                <TableHead className="w-[12%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -130,10 +212,10 @@ export function ParcelTable({
                   >
                     {/* Parcel ID */}
                     <TableCell>
-                      <div className="font-medium text-gray-900">
+                      <div className="truncate font-medium text-gray-900">
                         {parcel.tracking_id}
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                      <div className="mt-1 flex items-center gap-2 truncate text-sm text-gray-600">
                         <QrCode className="h-3 w-3" />
                         {parcel.qrCode}
                       </div>
@@ -141,13 +223,13 @@ export function ParcelTable({
 
                     {/* Sender / Receiver */}
                     <TableCell>
-                      <div className="font-medium text-gray-900">
+                      <div className="truncate font-medium text-gray-900">
                         {parcel.sender}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="truncate text-sm text-gray-600">
                         → {parcel.receiver}
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                      <div className="mt-1 flex items-center gap-1 truncate text-xs text-gray-500">
                         <Phone className="h-3 w-3" />
                         {parcel.receiverPhone}
                       </div>

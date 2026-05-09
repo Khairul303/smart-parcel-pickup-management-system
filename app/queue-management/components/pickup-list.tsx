@@ -120,13 +120,13 @@ export function PickupList({
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="min-w-0">
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
           className="w-full"
         >
-          <TabsList className="grid grid-cols-3 mb-4">
+          <TabsList className="mb-4 grid w-full grid-cols-3">
             <TabsTrigger value="all">
               All ({pickups.length})
             </TabsTrigger>
@@ -148,11 +148,11 @@ export function PickupList({
               return (
                 <div
                   key={pickup.id}
-                  className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition"
+                  className="rounded-lg border bg-white p-3 transition hover:bg-gray-50 sm:p-4"
                 >
-                  <div className="flex justify-between gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
                     {/* LEFT */}
-                    <div className="flex gap-4 flex-1">
+                    <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:gap-4">
                       {/* QUEUE */}
                       <div className="flex flex-col items-center">
                         <div className="px-4 py-3 rounded-lg border bg-gray-100">
@@ -170,9 +170,9 @@ export function PickupList({
                       </div>
 
                       {/* INFO */}
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold">
+                        <h3 className="break-words font-semibold">
                             {pickup.customer_name}
                           </h3>
 
@@ -223,7 +223,7 @@ export function PickupList({
                           </div>
 
                           {/* DATE + SLOT */}
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
                               <span>{pickup.pickup_date}</span>
@@ -249,7 +249,7 @@ export function PickupList({
                     </div>
 
                     {/* ACTIONS */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-row flex-wrap justify-end gap-2 sm:flex-col">
                       {pickup.preparation_status === "pending" && (
                         <Button
                           size="sm"

@@ -224,10 +224,10 @@ export default function PickupManagementPage() {
 
       <SidebarInset>
         {/* HEADER */}
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/95 px-6">
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-10 flex min-h-16 items-center justify-between gap-3 border-b bg-background/95 px-3 py-2 sm:px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <SidebarTrigger />
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="hidden h-6 sm:block" />
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -258,12 +258,12 @@ export default function PickupManagementPage() {
                 isRefreshing ? "animate-spin" : ""
               }`}
             />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </header>
 
         {/* CONTENT */}
-        <main className="p-6 space-y-6 bg-linear-to-b from-gray-50/50 to-white min-h-screen">
+        <main className="min-h-screen min-w-0 space-y-6 bg-linear-to-b from-gray-50/50 to-white p-4 md:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard
               title="Total Pickups"
@@ -304,8 +304,8 @@ export default function PickupManagementPage() {
             onStatusFilterChange={setStatusFilter}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+          <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="min-w-0 lg:col-span-2">
               <PickupList
                 pickups={pickups}
                 filteredPickups={filteredPickups}

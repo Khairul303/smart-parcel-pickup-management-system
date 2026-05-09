@@ -16,7 +16,7 @@ export default function PickupSchedulingPage() {
     <SidebarProvider>
       <CustomerSidebar />
 
-      <SidebarInset>
+      <SidebarInset className="overflow-x-hidden">
         {/* ================= HEADER (MATCH DASHBOARD) ================= */}
         <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
           <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
@@ -50,7 +50,7 @@ export default function PickupSchedulingPage() {
         </header>
 
         {/* ================= MAIN CONTENT ================= */}
-        <main className="p-4 md:p-4">
+        <main className="w-full min-w-0 p-3 sm:p-4 md:p-6">
           <PickupScheduling
             isBookingDialogOpen={isBookingDialogOpen}
             onBookingDialogChange={setIsBookingDialogOpen}
