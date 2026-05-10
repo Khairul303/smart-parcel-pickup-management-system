@@ -96,17 +96,14 @@ export function PickupRecordsTable({
                   <div>
                     <div className="text-xs text-muted-foreground">Queue</div>
                     <div className="font-semibold">
-                      Q-{record.queueNumber?.toString().padStart(2, "0") || "00"}
+                      {record.queueLabel ?? `Q-${record.queueNumber?.toString().padStart(2, "0") || "00"}`}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Pickup Time</div>
                     <div>{new Date(record.preferredTime).toLocaleDateString()}</div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(record.preferredTime).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {record.timeSlot ?? "Not scheduled"}
                     </div>
                   </div>
                   <div className="col-span-2">
@@ -142,7 +139,8 @@ export function PickupRecordsTable({
                   <TableHead className="w-[86px] px-3 text-center">Queue #</TableHead>
                   <TableHead className="px-3">Customer</TableHead>
                   <TableHead className="px-3">Parcel Details</TableHead>
-                  <TableHead className="w-[132px] px-3">Pickup Time</TableHead>
+                  <TableHead className="w-[112px] px-3">Pickup Date</TableHead>
+                  <TableHead className="w-[132px] px-3">Time Slot</TableHead>
                   <TableHead className="w-[124px] px-3">Status</TableHead>
                   <TableHead className="w-[88px] px-3">Actions</TableHead>
                 </TableRow>
@@ -157,7 +155,7 @@ export function PickupRecordsTable({
                         <div className="flex flex-col items-center">
                           <div className="p-1.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                             <span className="text-base font-bold">
-                              Q-{record.queueNumber?.toString().padStart(2, "0") || "00"}
+                              {record.queueLabel ?? `Q-${record.queueNumber?.toString().padStart(2, "0") || "00"}`}
                             </span>
                           </div>
                           {record.estimatedWait && record.status === "in-progress" && (
@@ -201,13 +199,23 @@ export function PickupRecordsTable({
                               {new Date(record.preferredTime).toLocaleDateString()}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {new Date(record.preferredTime).toLocaleTimeString([], { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })}
+                              Created {new Date(record.createdAt).toLocaleDateString()}
                             </div>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell className="px-3 py-3">
+                        <div className="text-xs font-medium">
+                          {record.timeSlot ?? "Not scheduled"}
+                        </div>
+                        {record.updatedAt && (
+                          <div className="text-xs text-muted-foreground">
+                            Updated {new Date(record.updatedAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="px-3 py-3">
                         <Badge 

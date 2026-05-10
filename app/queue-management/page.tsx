@@ -22,14 +22,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
-import { Button } from "@/components/ui/button"
 import {
   ChevronRight,
   Users,
   UserCheck,
   PackageCheck,
   CheckCircle,
-  RefreshCw,
 } from "lucide-react"
 
 import { Pickup, AVERAGE_HANDLING_TIME } from "./types"
@@ -38,6 +36,7 @@ import { Filters } from "./components/filters"
 import { PickupList } from "./components/pickup-list"
 import { QueueStats } from "./components/queue-stats"
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications"
+import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 
 /* =====================
    DB ROW TYPE
@@ -51,7 +50,7 @@ interface PickupRow {
   customer_email: string | null
   customer_phone: string | null
   tracking_ids: string[] | null
-  status: "booked" | "checked_in" | "collected" | "cancelled" | "no_show"
+  status: "booked" | "upcoming" | "checked_in" | "collected" | "cancelled" | "no_show"
   preparation_status: "pending" | "prepared"
 }
 
@@ -71,14 +70,11 @@ export default function PickupManagementPage() {
   const [pickups, setPickups] = useState<Pickup[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [isRefreshing, setIsRefreshing] = useState(false)
 
   /* =====================
      LOAD PICKUPS
   ===================== */
   const loadPickups = useCallback(async () => {
-    setIsRefreshing(true)
-
     const todayStr = getMalaysiaDateString()
 
     const { data, error } = await supabase
@@ -97,9 +93,7 @@ export default function PickupManagementPage() {
       `)
       .gte("pickup_date", todayStr)
       .order("pickup_date", { ascending: true })
-      .order("time_slot", { ascending: true })
-
-    console.log("STAFF PICKUP QUEUE DATA:", data)
+        .order("time_slot", { ascending: true })
 
     startTransition(() => {
       if (error) {
@@ -125,13 +119,15 @@ export default function PickupManagementPage() {
         mapped.sort((a, b) => {
           const qa = parseInt(a.queue_number.replace(/\D/g, "")) || 0
           const qb = parseInt(b.queue_number.replace(/\D/g, "")) || 0
+          const dateCompare = a.pickup_date.localeCompare(b.pickup_date)
+          if (dateCompare !== 0) return dateCompare
+          const slotCompare = a.time_slot.localeCompare(b.time_slot)
+          if (slotCompare !== 0) return slotCompare
           return qa - qb
         })
 
         setPickups(mapped)
       }
-
-      setIsRefreshing(false)
     })
   }, [])
 
@@ -142,6 +138,21 @@ export default function PickupManagementPage() {
     startTransition(() => {
       loadPickups()
     })
+  }, [loadPickups])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("staff-pickup-queue")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pickup_bookings" },
+        () => loadPickups()
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [loadPickups])
 
   /* =====================
@@ -161,10 +172,12 @@ export default function PickupManagementPage() {
   /* =====================
      STATS
   ===================== */
+  const activePickups = pickups.filter((p) => p.status !== "cancelled" && p.status !== "no_show")
+
   const stats = {
-    total: pickups.length,
+    total: activePickups.length,
     prepared: pickups.filter(
-      (p) => p.preparation_status === "prepared"
+      (p) => p.preparation_status === "prepared" && p.status !== "cancelled" && p.status !== "no_show"
     ).length,
     checkedIn: pickups.filter(
       (p) => p.status === "checked_in"
@@ -197,7 +210,6 @@ export default function PickupManagementPage() {
       relatedId: pickup.id,
     })
 
-    loadPickups()
   }
 
   const handleCheckIn = async (pickup: Pickup) => {
@@ -225,7 +237,6 @@ export default function PickupManagementPage() {
       relatedId: pickup.id,
     })
 
-    loadPickups()
   }
 
   const handleCollected = async (pickup: Pickup) => {
@@ -243,7 +254,6 @@ export default function PickupManagementPage() {
       relatedId: pickup.id,
     })
 
-    loadPickups()
   }
 
   /* =====================
@@ -278,19 +288,7 @@ export default function PickupManagementPage() {
             </Breadcrumb>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadPickups}
-            disabled={isRefreshing}
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${
-                isRefreshing ? "animate-spin" : ""
-              }`}
-            />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
+          <AdminNotificationButton />
         </header>
 
         {/* CONTENT */}

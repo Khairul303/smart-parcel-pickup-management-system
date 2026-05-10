@@ -74,7 +74,7 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
               <div className="space-y-2">
                 <div className="text-sm font-medium">Queue Number</div>
                 <div className="text-2xl font-bold text-blue-600">
-                  Q-{record.queueNumber?.toString().padStart(2, "0") || "00"}
+                  {record.queueLabel ?? `Q-${record.queueNumber?.toString().padStart(2, "0") || "00"}`}
                 </div>
               </div>
               <div className="space-y-2">
@@ -92,6 +92,10 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
                 <div className="text-sm">
                   {new Date(record.preferredTime).toLocaleString()}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Time Slot</div>
+                <div className="text-sm">{record.timeSlot ?? "Not scheduled"}</div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium">Assigned To</div>

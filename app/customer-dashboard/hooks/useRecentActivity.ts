@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import supabase from "@/lib/supabase"
+import {
+  belongsToCustomerContact,
+  buildCustomerParcelOrFilter,
+  type CustomerContact,
+} from "@/lib/customer-data"
 
 export type RecentActivityParcel = {
   id: string
@@ -16,13 +21,6 @@ export type RecentActivityParcel = {
   updated_at: string | null
 }
 
-type CustomerProfile = {
-  email: string | null
-  phone: string | null
-}
-
-const normalize = (value?: string | null) => value?.trim().toLowerCase() ?? ""
-
 const getActivityDate = (parcel: RecentActivityParcel) =>
   parcel.updated_at ?? parcel.created_at ?? ""
 
@@ -32,23 +30,6 @@ const sortActivities = (items: RecentActivityParcel[]) =>
       new Date(getActivityDate(b)).getTime() -
       new Date(getActivityDate(a)).getTime()
   )
-
-const belongsToCustomer = (
-  parcel: RecentActivityParcel,
-  profile: CustomerProfile | null
-) => {
-  if (!profile) return true
-
-  const email = normalize(profile.email)
-  const phone = normalize(profile.phone)
-  const parcelEmail = normalize(parcel.receiver_email)
-  const parcelPhone = normalize(parcel.receiver_phone)
-
-  if (email && parcelEmail) return parcelEmail === email
-  if (phone && parcelPhone) return parcelPhone === phone
-
-  return true
-}
 
 export function useRecentActivity(limit = 5) {
   const [activities, setActivities] = useState<RecentActivityParcel[]>([])
@@ -61,12 +42,27 @@ export function useRecentActivity(limit = 5) {
   )
 
   const loadActivities = useCallback(
-    async (customerProfile: CustomerProfile | null) => {
+    async (customerProfile: CustomerContact | null) => {
       setError(null)
+
+      if (!customerProfile) {
+        setActivities([])
+        setLoading(false)
+        return
+      }
+
+      const customerFilter = buildCustomerParcelOrFilter(customerProfile)
+
+      if (!customerFilter) {
+        setActivities([])
+        setLoading(false)
+        return
+      }
 
       const { data, error: parcelsError } = await supabase
         .from("parcels")
         .select("*")
+        .or(customerFilter)
         .order("created_at", { ascending: false })
         .limit(30)
 
@@ -78,7 +74,7 @@ export function useRecentActivity(limit = 5) {
       }
 
       const filtered = ((data ?? []) as RecentActivityParcel[]).filter(
-        (parcel) => belongsToCustomer(parcel, customerProfile)
+        (parcel) => belongsToCustomerContact(parcel, customerProfile)
       )
 
       setActivities(sortActivities(filtered))
@@ -89,7 +85,7 @@ export function useRecentActivity(limit = 5) {
 
   useEffect(() => {
     let active = true
-    let currentProfile: CustomerProfile | null = null
+    let currentProfile: CustomerContact | null = null
 
     const load = async () => {
       setLoading(true)
@@ -113,6 +109,7 @@ export function useRecentActivity(limit = 5) {
           .maybeSingle()
 
         currentProfile = {
+          id: user.id,
           email: user.email ?? null,
           phone: profileData?.no_telephone ?? null,
         }
@@ -145,7 +142,10 @@ export function useRecentActivity(limit = 5) {
 
           const nextParcel = payload.new as RecentActivityParcel
 
-          if (!belongsToCustomer(nextParcel, currentProfile)) {
+          if (
+            !currentProfile ||
+            !belongsToCustomerContact(nextParcel, currentProfile)
+          ) {
             setActivities((prev) =>
               prev.filter((activity) => activity.id !== nextParcel.id)
             )

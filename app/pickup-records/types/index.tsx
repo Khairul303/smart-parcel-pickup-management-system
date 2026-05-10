@@ -24,10 +24,13 @@ export interface PickupRecord {
   }
   pickupAddress: string
   preferredTime: string
+  timeSlot?: string
   status: PickupStatus
   assignedTo: string
   createdAt: string
+  updatedAt?: string
   queueNumber?: number
+  queueLabel?: string
   estimatedWait?: number
 }
 

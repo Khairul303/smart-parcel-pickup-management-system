@@ -1,45 +1,63 @@
 "use client"
 
 import { Calendar, Clock } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import supabase from "@/lib/supabase"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { PickupSchedule } from "./PickupScheduling"
+import { NewPickupPayload } from "./PickupScheduling"
 import { PICKUP_STATUS } from "@/lib/pickup-status"
+import {
+  formatMalaysiaDate,
+  getEstimatedMinutes,
+  getParcelCount,
+} from "@/lib/pickup-scheduling"
 
 interface Props {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   selectedDate: string
   selectedTimeSlot: string
-  onBook: (pickup: PickupSchedule & { trackingIds?: string[] }) => void
+  onBook: (
+    pickup: NewPickupPayload & {
+      status: typeof PICKUP_STATUS.BOOKED
+      trackingIds: string[]
+      estimatedMinutes: number
+      estimatedWaitMinutes: number
+    }
+  ) => void
 }
 
-// ✅ STRONGLY TYPED PROFILE
 interface Profile {
   id: string
   full_name: string
   no_telephone: string
   email: string
-  // 👇 optional future fields (safe even if not used)
   address?: string
   role?: string
   created_at?: string
 }
 
-// ⏱ average handling time per customer
-const AVG_HANDLE_MINUTES = 5
+interface SlotAvailability {
+  time_slot: string
+  remaining: number
+}
+
+interface PreviewResult {
+  queue_number?: number
+  estimated_wait_minutes?: number
+  available_quota?: number
+}
 
 export function BookingDialog({
   isOpen,
@@ -49,20 +67,28 @@ export function BookingDialog({
   onBook,
 }: Props) {
   const [queuePreview, setQueuePreview] = useState<number | null>(null)
+  const [estimatedWaitMinutes, setEstimatedWaitMinutes] = useState(0)
+  const [availableQuota, setAvailableQuota] = useState<number | null>(null)
   const [trackingIds, setTrackingIds] = useState<string[]>([""])
-
-  // ✅ TYPED PROFILE STATE
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-
   const [formData, setFormData] = useState({
     pickupAddress: "",
     parcelDetails: "",
     specialInstructions: "",
   })
 
-  // ======================
-  // LOAD FULL PROFILE DATA
-  // ======================
+  const cleanTrackingIds = useMemo(
+    () => trackingIds.map((id) => id.trim()).filter(Boolean),
+    [trackingIds]
+  )
+  const parcelCount = getParcelCount(cleanTrackingIds, formData.parcelDetails)
+  const estimatedMinutes = getEstimatedMinutes(parcelCount)
+  const quotaError =
+    availableQuota !== null && availableQuota < estimatedMinutes
+      ? `This slot only has ${availableQuota} quota left. Your booking needs ${estimatedMinutes}.`
+      : submitError
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -77,7 +103,7 @@ export function BookingDialog({
         .from("profile_with_email")
         .select("*")
         .eq("id", user.id)
-        .single<Profile>() // ✅ typed response
+        .single<Profile>()
 
       if (!error && data) {
         setProfile(data)
@@ -89,15 +115,47 @@ export function BookingDialog({
     fetchProfile()
   }, [isOpen])
 
-  // ======================
-  // PREVIEW QUEUE NUMBER
-  // ======================
   useEffect(() => {
     let active = true
 
     const fetchQueuePreview = async () => {
       if (!isOpen || !selectedDate || !selectedTimeSlot) {
-        if (active) setQueuePreview(null)
+        if (active) {
+          setQueuePreview(null)
+          setEstimatedWaitMinutes(0)
+          setAvailableQuota(null)
+          setSubmitError(null)
+        }
+        return
+      }
+
+      const { data: slotData } = await supabase.rpc("get_available_slots", {
+        p_date: selectedDate,
+      })
+      const matchingSlot = (slotData as SlotAvailability[] | null)?.find(
+        (slot) => slot.time_slot === selectedTimeSlot
+      )
+      const remaining = matchingSlot?.remaining ?? null
+
+      const { data: detailedPreview, error: detailedError } = await supabase.rpc(
+        "preview_pickup_queue",
+        {
+          p_date: selectedDate,
+          p_time_slot: selectedTimeSlot,
+        }
+      )
+
+      if (!active) return
+
+      if (!detailedError && detailedPreview) {
+        const preview = Array.isArray(detailedPreview)
+          ? detailedPreview[0]
+          : detailedPreview
+        const normalized = preview as PreviewResult
+
+        setQueuePreview(normalized.queue_number ?? null)
+        setEstimatedWaitMinutes(normalized.estimated_wait_minutes ?? 0)
+        setAvailableQuota(normalized.available_quota ?? remaining)
         return
       }
 
@@ -106,9 +164,15 @@ export function BookingDialog({
         p_time_slot: selectedTimeSlot,
       })
 
-      if (!error && active) {
-        setQueuePreview(data)
+      if (!active) return
+
+      if (!error) {
+        const nextQueueNumber = Number(data ?? 1)
+        setQueuePreview(nextQueueNumber)
+        setEstimatedWaitMinutes(Math.max(nextQueueNumber - 1, 0))
       }
+
+      setAvailableQuota(remaining)
     }
 
     fetchQueuePreview()
@@ -116,11 +180,8 @@ export function BookingDialog({
     return () => {
       active = false
     }
-  }, [isOpen, selectedDate, selectedTimeSlot])
+  }, [estimatedMinutes, isOpen, selectedDate, selectedTimeSlot])
 
-  // ======================
-  // HANDLERS
-  // ======================
   const handleTrackingChange = (index: number, value: string) => {
     const updated = [...trackingIds]
     updated[index] = value
@@ -132,17 +193,17 @@ export function BookingDialog({
   }
 
   const handleSubmit = () => {
-    if (!profile || !selectedTimeSlot || !formData.parcelDetails.trim()) {
+    if (!profile || !selectedDate || !selectedTimeSlot || !formData.parcelDetails.trim()) {
       alert("Please complete required fields")
       return
     }
 
-    const cleanTrackingIds = trackingIds
-      .map((id) => id.trim())
-      .filter(Boolean)
+    if (availableQuota !== null && availableQuota < estimatedMinutes) {
+      setSubmitError("This slot does not have enough quota. Please choose another time slot.")
+      return
+    }
 
     onBook({
-      id: "",
       date: selectedDate,
       timeSlot: selectedTimeSlot,
       status: PICKUP_STATUS.BOOKED,
@@ -152,16 +213,13 @@ export function BookingDialog({
       pickupAddress: formData.pickupAddress,
       parcelDetails: formData.parcelDetails,
       specialInstructions: formData.specialInstructions,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
       trackingIds: cleanTrackingIds,
+      estimatedMinutes,
+      estimatedWaitMinutes,
     })
 
     onOpenChange(false)
   }
-
-  const estimatedWait =
-    queuePreview !== null ? (queuePreview - 1) * AVG_HANDLE_MINUTES : null
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -173,12 +231,11 @@ export function BookingDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* DATE + TIME + QUEUE */}
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              {selectedDate}
+              {formatMalaysiaDate(selectedDate)}
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
@@ -192,14 +249,18 @@ export function BookingDialog({
                   {String(queuePreview).padStart(3, "0")}
                 </div>
                 <div className="sm:col-span-2 text-xs text-muted-foreground">
-                  Estimated waiting time: ~{estimatedWait} minutes
+                  Estimated waiting time: ~{estimatedWaitMinutes} minutes
+                </div>
+                <div className="sm:col-span-2 text-xs text-muted-foreground">
+                  This booking uses {estimatedMinutes} quota unit
+                  {estimatedMinutes === 1 ? "" : "s"} for {parcelCount} parcel
+                  {parcelCount === 1 ? "" : "s"}.
                 </div>
               </>
             )}
           </CardContent>
         </Card>
 
-        {/* CUSTOMER & PARCEL INFO */}
         <div className="grid gap-4">
           <Input placeholder="Name" value={profile?.full_name ?? ""} disabled />
           <Input placeholder="Phone" value={profile?.no_telephone ?? ""} disabled />
@@ -207,21 +268,22 @@ export function BookingDialog({
 
           <Textarea
             placeholder="Pickup Address"
+            value={formData.pickupAddress}
             onChange={(e) =>
               setFormData({ ...formData, pickupAddress: e.target.value })
             }
           />
           <Textarea
             placeholder="Parcel Details *"
+            value={formData.parcelDetails}
             onChange={(e) =>
               setFormData({ ...formData, parcelDetails: e.target.value })
             }
           />
 
-          {/* TRACKING IDS */}
           <div className="space-y-2">
             <div className="text-sm font-medium">
-              Tracking IDs (for staff preparation)
+              Tracking IDs for staff preparation
             </div>
 
             {trackingIds.map((id, index) => (
@@ -229,9 +291,7 @@ export function BookingDialog({
                 key={index}
                 placeholder={`Tracking ID ${index + 1}`}
                 value={id}
-                onChange={(e) =>
-                  handleTrackingChange(index, e.target.value)
-                }
+                onChange={(e) => handleTrackingChange(index, e.target.value)}
               />
             ))}
 
@@ -244,13 +304,33 @@ export function BookingDialog({
               + Add another parcel
             </Button>
           </div>
+
+          {availableQuota !== null && (
+            <div className="rounded-md border bg-gray-50 p-3 text-sm">
+              <div className="font-medium">
+                {availableQuota} slots available for {selectedTimeSlot}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Your current parcel count requires {estimatedMinutes} slot
+                {estimatedMinutes === 1 ? "" : "s"}.
+              </div>
+            </div>
+          )}
+
+          {quotaError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {quotaError}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Confirm Booking</Button>
+          <Button onClick={handleSubmit} disabled={!!quotaError}>
+            Confirm Booking
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

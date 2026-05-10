@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
   SidebarProvider,
@@ -16,59 +16,85 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
-import { Button } from "@/components/ui/button"
-import { Bell, ChevronRight, RefreshCw, CheckCircle } from "lucide-react"
+import { ClipboardList, ChevronRight, RefreshCw, CheckCircle } from "lucide-react"
 
-// Import local types and config
 import { PickupRecord } from "./types"
-import { dummyPickupRecords } from "./config"
+import { useAdminRealtimeData, type AdminPickupBooking } from "@/lib/admin-realtime"
 
 // Import local components
 import { SummaryCard } from "./components/summary-card"
 import { Filters } from "./components/filters"
 import { PickupRecordsTable } from "./components/pickup-records-table"
 import { RecordDetailsModal } from "./components/record-details-modal"
+import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 
 export default function PickupRecordsPage() {
-  const [records, setRecords] = useState<PickupRecord[]>([])
+  const {
+    pickups,
+  } = useAdminRealtimeData({ parcels: false, notifications: false })
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedRecord, setSelectedRecord] = useState<PickupRecord | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  /* 🔄 LOAD RECORDS */
-  const loadRecords = useCallback(async () => {
-    setIsRefreshing(true)
-    // In a real app, fetch from Supabase
-    // For now, use dummy data with simulated delay
-    setTimeout(() => {
-      setRecords(dummyPickupRecords)
-      setIsRefreshing(false)
-    }, 500)
-  }, [])
+  const mapPickupStatus = (status?: string | null): PickupRecord["status"] => {
+    if (status === "checked_in") return "in-progress"
+    if (status === "collected" || status === "completed") return "completed"
+    if (status === "cancelled" || status === "no_show") return "cancelled"
+    if (status === "booked" || status === "upcoming") return "assigned"
+    return "pending"
+  }
 
-  useEffect(() => {
-    let isMounted = true
+  const getInitials = (name?: string | null) =>
+    (name ?? "NA")
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
 
-    const fetchRecords = async () => {
-      setIsRefreshing(true)
+  const getQueueNumber = (queue?: string | null) => {
+    const parsed = Number.parseInt(queue?.replace(/\D/g, "") ?? "", 10)
+    return Number.isNaN(parsed) ? undefined : parsed
+  }
 
-      // Simulate API delay (replace with Supabase later)
-      setTimeout(() => {
-        if (!isMounted) return
+  const toPickupRecord = (pickup: AdminPickupBooking): PickupRecord => ({
+    id: pickup.pickup_code,
+    customer: {
+      name: pickup.customer_name ?? "Unknown Customer",
+      email: pickup.customer_email ?? "-",
+      phone: pickup.customer_phone ?? "-",
+      avatar: getInitials(pickup.customer_name),
+    },
+    parcelDetails: {
+      type:
+        pickup.tracking_ids && pickup.tracking_ids.length > 0
+          ? pickup.tracking_ids.join(", ")
+          : pickup.parcel_details ?? "Parcel details unavailable",
+      weight: `${Math.max(pickup.tracking_ids?.length ?? 1, 1)} parcel(s)`,
+      dimensions: pickup.parcel_details ?? "Not specified",
+      value: "Not recorded",
+    },
+    pickupAddress: pickup.pickup_address ?? "No pickup address recorded",
+    preferredTime: `${pickup.pickup_date ?? ""}T${
+      pickup.time_slot?.slice(0, 5) ?? "00:00"
+    }:00`,
+    timeSlot: pickup.time_slot ?? "Not scheduled",
+    status: mapPickupStatus(pickup.status),
+    assignedTo: pickup.preparation_status === "prepared" ? "Prepared" : "Staff",
+    createdAt: pickup.created_at ?? new Date().toISOString(),
+    updatedAt: pickup.updated_at ?? pickup.created_at ?? undefined,
+    queueNumber: getQueueNumber(pickup.queue_number),
+    queueLabel: pickup.queue_number ?? "-",
+    estimatedWait: pickup.estimated_wait_minutes ?? undefined,
+  })
 
-        setRecords(dummyPickupRecords)
-        setIsRefreshing(false)
-      }, 500)
-    }
-
-    fetchRecords()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  const records = pickups
+    .map(toPickupRecord)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 
   /* 🔍 FILTERED RECORDS */
   const filteredRecords = records.filter(record => {
@@ -76,6 +102,7 @@ export default function PickupRecordsPage() {
       record.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.customer.phone.includes(searchQuery) ||
+      (record.timeSlot ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.pickupAddress.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesStatus = 
@@ -134,23 +161,7 @@ export default function PickupRecordsPage() {
             </Breadcrumb>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="relative"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadRecords}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
+            <AdminNotificationButton />
           </div>
         </header>
 
@@ -177,7 +188,7 @@ export default function PickupRecordsPage() {
             <SummaryCard
               title="Total Records"
               value={stats.total}
-              icon={<Bell className="h-5 w-5" />}
+              icon={<ClipboardList className="h-5 w-5" />}
               description="All pickup records"
               color="bg-blue-500"
             />

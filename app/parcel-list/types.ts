@@ -32,6 +32,11 @@ export interface Parcel {
   /** Sender & receiver information */
   sender: string
   receiver: string
+  receiver_email?: string | null
+  receiver_phone?: string | null
+  user_id?: string | null
+  customer_id?: string | null
+  profile_id?: string | null
 
   /** Optional parcel details */
   weight?: string

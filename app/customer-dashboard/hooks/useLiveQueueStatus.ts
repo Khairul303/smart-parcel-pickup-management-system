@@ -14,11 +14,8 @@ export type LiveQueueItem = {
   pickupDate: string
   timeSlot: string
   queueNumber: string
-  customerEmail: string | null
-  customerName: string | null
   status: ActiveQueueStatus
   preparationStatus: string | null
-  trackingIds: string[]
   createdAt: string | null
   updatedAt: string | null
 }
@@ -29,10 +26,8 @@ type PickupBookingRow = {
   time_slot: string
   queue_number: string | null
   customer_email: string | null
-  customer_name: string | null
   status: string
   preparation_status: string | null
-  tracking_ids: string[] | null
   created_at: string | null
   updated_at: string | null
 }
@@ -59,11 +54,8 @@ const mapQueueRow = (row: PickupBookingRow): LiveQueueItem | null => {
     pickupDate: row.pickup_date,
     timeSlot: row.time_slot,
     queueNumber: row.queue_number ?? "-",
-    customerEmail: row.customer_email,
-    customerName: row.customer_name,
     status: row.status,
     preparationStatus: row.preparation_status,
-    trackingIds: row.tracking_ids ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -82,19 +74,43 @@ const sortQueueItems = (items: LiveQueueItem[]) =>
 
 export function useLiveQueueStatus() {
   const [queueItems, setQueueItems] = useState<LiveQueueItem[]>([])
+  const [peopleInQueue, setPeopleInQueue] = useState(0)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refreshQueue = useCallback(async () => {
+  const refreshQueue = useCallback(async (email?: string | null) => {
     setLoading(true)
     setError(null)
+
+    const { count, error: countError } = await supabase
+      .from("pickup_bookings")
+      .select("pickup_code", { count: "exact", head: true })
+      .gte("pickup_date", getMalaysiaDateString())
+      .in("status", [...ACTIVE_QUEUE_STATUSES])
+
+    if (countError) {
+      setError(countError.message)
+      setQueueItems([])
+      setPeopleInQueue(0)
+      setLoading(false)
+      return
+    }
+
+    setPeopleInQueue(count ?? 0)
+
+    if (!email) {
+      setQueueItems([])
+      setLoading(false)
+      return
+    }
 
     const { data, error: queueError } = await supabase
       .from("pickup_bookings")
       .select(
-        "pickup_code, pickup_date, time_slot, queue_number, customer_email, customer_name, status, preparation_status, tracking_ids, created_at, updated_at"
+        "pickup_code, pickup_date, time_slot, queue_number, customer_email, status, preparation_status, created_at, updated_at"
       )
+      .eq("customer_email", email)
       .gte("pickup_date", getMalaysiaDateString())
       .in("status", [...ACTIVE_QUEUE_STATUSES])
       .order("pickup_date", { ascending: true })
@@ -117,75 +133,59 @@ export function useLiveQueueStatus() {
 
   useEffect(() => {
     let active = true
+    let channel: ReturnType<typeof supabase.channel> | null = null
 
     const loadUser = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (active) setUserEmail(user?.email ?? null)
+      if (!active) return
+
+      const email = user?.email ?? null
+      setUserEmail(email)
+      await refreshQueue(email)
+
+      if (!email || !active) return
+
+      channel = supabase
+        .channel("customer-dashboard-live-queue")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "pickup_bookings",
+            filter: `customer_email=eq.${email}`,
+          },
+          () => {
+            refreshQueue(email)
+          }
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR") {
+            setError("Unable to connect to live queue updates.")
+          }
+        })
     }
 
     loadUser()
-    Promise.resolve().then(refreshQueue)
-
-    const channel = supabase
-      .channel("customer-dashboard-live-queue")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "pickup_bookings",
-        },
-        (payload) => {
-          const eventType = payload.eventType
-
-          if (eventType === "DELETE") {
-            const oldRow = payload.old as Partial<PickupBookingRow>
-            setQueueItems((prev) =>
-              prev.filter((item) => item.id !== oldRow.pickup_code)
-            )
-            return
-          }
-
-          const nextItem = mapQueueRow(payload.new as PickupBookingRow)
-
-          setQueueItems((prev) => {
-            const withoutCurrent = prev.filter(
-              (item) =>
-                item.id !==
-                ((payload.new as Partial<PickupBookingRow>).pickup_code ?? "")
-            )
-
-            if (!nextItem) return sortQueueItems(withoutCurrent)
-            return sortQueueItems([nextItem, ...withoutCurrent])
-          })
-        }
-      )
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          setError("Unable to connect to live queue updates.")
-        }
-      })
 
     return () => {
       active = false
-      supabase.removeChannel(channel)
+      if (channel) supabase.removeChannel(channel)
     }
   }, [refreshQueue])
 
-  const peopleInQueue = queueItems.length
   const currentWaitMinutes = peopleInQueue * AVERAGE_QUEUE_WAIT_MINUTES
   const userQueueItem = useMemo(
-    () =>
-      userEmail
-        ? queueItems.find(
-            (item) =>
-              item.customerEmail?.toLowerCase() === userEmail.toLowerCase()
-          ) ?? null
-        : null,
+    () => (userEmail ? queueItems[0] ?? null : null),
     [queueItems, userEmail]
+  )
+
+  const refreshCurrentQueue = useCallback(
+    () => refreshQueue(userEmail),
+    [refreshQueue, userEmail]
   )
 
   return {
@@ -195,6 +195,6 @@ export function useLiveQueueStatus() {
     userQueueItem,
     loading,
     error,
-    refreshQueue,
+    refreshQueue: refreshCurrentQueue,
   }
 }

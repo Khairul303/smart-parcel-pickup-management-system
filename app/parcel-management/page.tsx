@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Bell } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   SidebarInset,
@@ -28,6 +26,7 @@ import { statusConfig, priorityConfig } from "./data/parcels";
 import { Parcel, ParcelFormData } from "./components/types";
 import QrScanner from "./components/QrScanner";
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications";
+import { AdminNotificationButton } from "@/app/admin-dashboard/components";
 
 
 export default function ParcelManagementPage() {
@@ -39,6 +38,9 @@ export default function ParcelManagementPage() {
   const [isManualEntry, setIsManualEntry] = useState(false);
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [parcelForm, setParcelForm] = useState<ParcelFormData>({
     sender: "",
@@ -86,7 +88,10 @@ export default function ParcelManagementPage() {
       },
       (payload) => {
         if (payload.eventType === "INSERT") {
-          setParcels((prev) => [payload.new as Parcel, ...prev]);
+          setParcels((prev) => [
+            payload.new as Parcel,
+            ...prev.filter((p) => p.id !== payload.new.id),
+          ]);
         }
 
         if (payload.eventType === "UPDATE") {
@@ -158,39 +163,33 @@ const handleScanQR = () => {
 
 const handleScanSuccess = async (trackingId: string) => {
   setQrScanMode(false);
+  setScanResult("");
 
-  if (!trackingId) return alert("Invalid QR code");
+  if (!trackingId?.trim()) {
+    setScanResult("Invalid QR code.");
+    return;
+  }
 
-  // Prevent duplicate
-  const { data: existing } = await supabase
+  const cleanTrackingId = trackingId.trim();
+  const { data: existing, error } = await supabase
     .from("parcels")
-    .select("id")
-    .eq("tracking_id", trackingId)
+    .select("*")
+    .eq("tracking_id", cleanTrackingId)
     .maybeSingle();
 
-  if (existing) {
-    alert(`Parcel ${trackingId} already registered`);
-    return;
-  }
-
-  // Insert parcel (arrived at post centre)
-  const { data, error } = await supabase
-    .from("parcels")
-    .insert({
-      tracking_id: trackingId,
-      status: "ready",
-      priority: "Normal",
-    })
-    .select()
-    .single();
-
   if (error) {
-    alert(error.message);
+    setScanResult(error.message);
     return;
   }
 
-  setParcels((prev) => [data, ...prev]);
-  setScanResult(trackingId);
+  if (existing) {
+    setSearch(cleanTrackingId);
+    openParcelDialog(existing as Parcel);
+    setScanResult(`Parcel ${cleanTrackingId} found.`);
+    return;
+  }
+
+  setScanResult("Parcel record not found.");
 };
 
   const openParcelDialog = (parcel: Parcel, editable = false) => {
@@ -217,6 +216,8 @@ const handleScanSuccess = async (trackingId: string) => {
       priority: parcel.priority ?? "Normal",
       status: parcel.status ?? "pending",
     });
+    setFormError(null);
+    setFormMessage(null);
     setIsDialogOpen(true);
   };
 
@@ -238,19 +239,26 @@ const handleScanSuccess = async (trackingId: string) => {
       priority: "Normal",
       status: "pending",
     });
+    setFormError(null);
+    setFormMessage(null);
     setIsDialogOpen(true);
   };
 
   /* 💾 SAVE PARCEL */
   const handleSaveParcel = async () => {
-  if (!parcelForm.sender || !parcelForm.receiver) {
-    alert("Required fields missing");
+  setFormError(null);
+  setFormMessage(null);
+
+  if (!parcelForm.sender || !parcelForm.receiver || !parcelForm.receiverPhone || !parcelForm.weight || !parcelForm.dimensions) {
+    setFormError("Please complete sender, receiver, receiver phone, weight, and dimensions.");
     return;
   }
 
+  setIsSaving(true);
+
   // UPDATE existing parcel
   if (selectedParcel) {
-    await supabase
+    const { error } = await supabase
       .from("parcels")
       .update({
         sender: parcelForm.sender,
@@ -267,11 +275,11 @@ const handleScanSuccess = async (trackingId: string) => {
       })
       .eq("id", selectedParcel.id);
 
-    setParcels((prev) =>
-      prev.map((p) =>
-        p.id === selectedParcel.id ? { ...p, ...parcelForm } : p
-      )
-    );
+    if (error) {
+      setFormError(error.message);
+      setIsSaving(false);
+      return;
+    }
 
     const statusMessage = getParcelStatusMessage(
       parcelForm.status,
@@ -292,7 +300,7 @@ const handleScanSuccess = async (trackingId: string) => {
   else {
     const trackingId = `PC-${Date.now()}`;
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("parcels")
       .insert({
         tracking_id: trackingId,
@@ -312,11 +320,10 @@ const handleScanSuccess = async (trackingId: string) => {
       .single();
 
     if (error) {
-      alert(error.message);
+      setFormError(error.message);
+      setIsSaving(false);
       return;
     }
-
-    setParcels((prev) => [data, ...prev]);
 
     await createCustomerNotificationByContact({
       email: parcelForm.receiverEmail,
@@ -339,6 +346,8 @@ const handleScanSuccess = async (trackingId: string) => {
     }
   }
 
+  setFormMessage(selectedParcel ? "Parcel updated successfully." : "Parcel created successfully.");
+  setIsSaving(false);
   setIsDialogOpen(false);
   setSelectedParcel(null);
   setIsManualEntry(false);
@@ -375,9 +384,7 @@ const handleScanSuccess = async (trackingId: string) => {
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <Button variant="outline" size="icon">
-            <Bell className="h-4 w-4" />
-          </Button>
+          <AdminNotificationButton />
         </header>
 
         {/* CONTENT */}
@@ -429,6 +436,9 @@ const handleScanSuccess = async (trackingId: string) => {
             onFormChange={setParcelForm}
             onSave={handleSaveParcel}
             onEnableEdit={() => setIsManualEntry(true)}
+            isSaving={isSaving}
+            message={formMessage}
+            error={formError}
           />
         </main>
         {qrScanMode && (

@@ -14,6 +14,7 @@ import {
 } from "@/lib/pickup-status"
 import type { PickupStatus } from "@/lib/pickup-status"
 import { createNotificationForCurrentUser } from "@/lib/customer-notifications"
+import { getEstimatedMinutes, getParcelCount } from "@/lib/pickup-scheduling"
 
 // ======================
 // TYPES
@@ -30,6 +31,7 @@ export interface PickupSchedule {
   parcelDetails: string
   specialInstructions?: string
   queueNumber?: string
+  estimatedWaitMinutes?: number
   createdAt: string
   updatedAt: string
 }
@@ -43,6 +45,9 @@ export interface NewPickupPayload {
   pickupAddress: string
   parcelDetails: string
   specialInstructions?: string
+  trackingIds?: string[]
+  estimatedMinutes?: number
+  estimatedWaitMinutes?: number
 }
 
 interface PickupSchedulingProps {
@@ -126,6 +131,7 @@ export function PickupScheduling({
         parcelDetails: p.parcel_details,
         specialInstructions: p.special_instructions,
         queueNumber: p.queue_number,
+        estimatedWaitMinutes: p.estimated_wait_minutes,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
       }))
@@ -144,6 +150,25 @@ export function PickupScheduling({
   // CONFIRM BOOKING
   // ======================
   const handleNewBooking = async (newPickup: NewPickupPayload) => {
+    const trackingIds = newPickup.trackingIds ?? []
+    const estimatedMinutes =
+      newPickup.estimatedMinutes ??
+      getEstimatedMinutes(getParcelCount(trackingIds, newPickup.parcelDetails))
+
+    const { data: availabilityData } = await supabase.rpc("get_available_slots", {
+      p_date: newPickup.date,
+    })
+    const selectedSlot = (
+      availabilityData as { time_slot: string; remaining: number }[] | null
+    )?.find((slot) => slot.time_slot === newPickup.timeSlot)
+
+    if (selectedSlot && selectedSlot.remaining < estimatedMinutes) {
+      alert(
+        `This time slot only has ${selectedSlot.remaining} quota left. Your booking needs ${estimatedMinutes}.`
+      )
+      return
+    }
+
     const { error } = await supabase.rpc("book_pickup_confirmed", {
       p_date: newPickup.date,
       p_time_slot: newPickup.timeSlot,
@@ -152,7 +177,7 @@ export function PickupScheduling({
       p_customer_email: newPickup.customerEmail,
       p_pickup_address: newPickup.pickupAddress,
       p_parcel_details: newPickup.parcelDetails,
-      p_tracking_ids: [],
+      p_tracking_ids: trackingIds,
     })
 
     if (error) {

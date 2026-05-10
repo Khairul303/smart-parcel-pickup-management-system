@@ -84,7 +84,11 @@ export function LoginForm({
     }
 
     // 🚫 ROLE MISMATCH CHECK (IMPORTANT FIX)
-    if (selectedRole !== profile.role) {
+    const isAdminRole = profile.role === "staff" || profile.role === "admin";
+    const selectedRoleMatches =
+      selectedRole === "staff" ? isAdminRole : profile.role === "customer";
+
+    if (!selectedRoleMatches) {
       setError(
         selectedRole === "staff"
           ? "This account is not registered as staff."
@@ -95,7 +99,7 @@ export function LoginForm({
     }
 
     // 4️⃣ Redirect based on DATABASE role
-    if (profile.role === "staff") {
+    if (isAdminRole) {
       window.location.href = "/admin-dashboard";
     } else {
       window.location.href = "/customer-dashboard";

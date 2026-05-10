@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import supabase from "@/lib/supabase"
+import {
+  belongsToCustomerContact,
+  buildCustomerParcelOrFilter,
+  type CustomerContact,
+} from "@/lib/customer-data"
 
 export type UserTrackingParcel = {
   id: string
@@ -16,33 +21,6 @@ export type UserTrackingParcel = {
   status?: string | null
   created_at?: string | null
   updated_at?: string | null
-}
-
-type CustomerProfile = {
-  id: string
-  email: string | null
-  phone: string | null
-}
-
-const normalize = (value?: string | null) => value?.trim().toLowerCase() ?? ""
-
-const belongsToCustomer = (
-  parcel: UserTrackingParcel,
-  profile: CustomerProfile
-) => {
-  if (parcel.user_id) return parcel.user_id === profile.id
-  if (parcel.customer_id) return parcel.customer_id === profile.id
-  if (parcel.profile_id) return parcel.profile_id === profile.id
-
-  const email = normalize(profile.email)
-  const phone = normalize(profile.phone)
-  const parcelEmail = normalize(parcel.receiver_email)
-  const parcelPhone = normalize(parcel.receiver_phone)
-
-  if (email && parcelEmail) return parcelEmail === email
-  if (phone && parcelPhone) return parcelPhone === phone
-
-  return true
 }
 
 const sortByNewest = (items: UserTrackingParcel[]) =>
@@ -89,15 +67,23 @@ export function useUserTrackingIds() {
       .eq("id", user.id)
       .maybeSingle()
 
-    const profile: CustomerProfile = {
+    const profile: CustomerContact = {
       id: user.id,
       email: user.email ?? null,
       phone: profileData?.no_telephone ?? null,
+    }
+    const customerFilter = buildCustomerParcelOrFilter(profile)
+
+    if (!customerFilter) {
+      setTrackingParcels([])
+      setLoading(false)
+      return
     }
 
     const { data, error: parcelsError } = await supabase
       .from("parcels")
       .select("*")
+      .or(customerFilter)
       .order("created_at", { ascending: false })
 
     if (parcelsError) {
@@ -108,7 +94,7 @@ export function useUserTrackingIds() {
     }
 
     const filtered = ((data ?? []) as UserTrackingParcel[]).filter((parcel) =>
-      belongsToCustomer(parcel, profile)
+      belongsToCustomerContact(parcel, profile)
     )
 
     setTrackingParcels(sortByNewest(filtered))

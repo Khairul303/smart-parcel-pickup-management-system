@@ -8,15 +8,17 @@ import {
 } from "@/components/ui/sidebar"
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
 import { PickupScheduling } from "./components/PickupScheduling"
+import { RoleGate } from "@/components/auth/RoleGate"
 
 export default function PickupSchedulingPage() {
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)
 
   return (
-    <SidebarProvider>
-      <CustomerSidebar />
+    <RoleGate allowedRoles={["customer"]}>
+      <SidebarProvider>
+        <CustomerSidebar />
 
-      <SidebarInset className="overflow-x-hidden">
+        <SidebarInset className="overflow-x-hidden">
         {/* ================= HEADER (MATCH DASHBOARD) ================= */}
         <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
           <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
@@ -56,7 +58,8 @@ export default function PickupSchedulingPage() {
             onBookingDialogChange={setIsBookingDialogOpen}
           />
         </main>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </RoleGate>
   )
 }

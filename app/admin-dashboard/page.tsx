@@ -15,10 +15,12 @@ import {
   QuickActionsSection,
 } from "./components";
 import { Loader2 } from "lucide-react";
+import { useAdminRealtimeData } from "@/lib/admin-realtime";
 
 export default function AdminDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const adminData = useAdminRealtimeData({ notifications: false });
 
   useEffect(() => {
     let isMounted = true;
@@ -47,8 +49,8 @@ export default function AdminDashboardPage() {
           return;
         }
 
-        // 3️⃣ Allow ONLY staff
-        if (profile.role !== "staff") {
+        // 3️⃣ Allow admin/staff only
+        if (profile.role !== "staff" && profile.role !== "admin") {
           window.location.replace("/customer-dashboard");
           return;
         }
@@ -109,13 +111,24 @@ export default function AdminDashboardPage() {
 
           <SearchFilterSection onAddParcel={handleAddParcel} />
 
-          <StatsSection />
+          <StatsSection parcels={adminData.parcels} loading={adminData.loading} />
 
-          <TodayActivitySection />
+          <TodayActivitySection
+            parcels={adminData.parcels}
+            pickups={adminData.pickups}
+            loading={adminData.loading}
+          />
 
           <div className="grid min-w-0 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <RecentParcelsSection />
-            <PerformanceMetricsSection />
+            <RecentParcelsSection
+              parcels={adminData.parcels}
+              loading={adminData.loading}
+            />
+            <PerformanceMetricsSection
+              parcels={adminData.parcels}
+              pickups={adminData.pickups}
+              loading={adminData.loading}
+            />
             <QuickActionsSection />
           </div>
         </main>

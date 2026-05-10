@@ -14,6 +14,7 @@ export const AVERAGE_HANDLING_TIME = 3
 ========================= */
 export type PickupStatus =
   | "booked"
+  | "upcoming"
   | "checked_in"
   | "collected"
   | "no_show"
@@ -60,6 +61,13 @@ export const statusConfig: Record<
 > = {
   booked: {
     label: "Booked",
+    variant: "default",
+    icon: <Calendar className="h-3 w-3 mr-1" />,
+    colorClass: "text-blue-700 border-blue-300 bg-blue-50",
+  },
+
+  upcoming: {
+    label: "Upcoming",
     variant: "default",
     icon: <Calendar className="h-3 w-3 mr-1" />,
     colorClass: "text-blue-700 border-blue-300 bg-blue-50",

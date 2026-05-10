@@ -10,8 +10,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Bell, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AdminNotificationButton } from "./AdminNotificationButton";
 
 export function HeaderSection() {
   return (
@@ -33,14 +32,7 @@ export function HeaderSection() {
       </div>
       
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <Button variant="outline" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
-        </Button>
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">Export Report</span>
-        </Button>
+        <AdminNotificationButton />
       </div>
     </header>
   );

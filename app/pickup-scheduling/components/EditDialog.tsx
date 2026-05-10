@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { PickupSchedule } from "./PickupScheduling"
+import { formatMalaysiaDate } from "@/lib/pickup-scheduling"
 
 interface EditDialogProps {
   isOpen: boolean
@@ -47,14 +48,6 @@ export function EditDialog({
     })
   }
 
-  const formatDateDisplay = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -71,7 +64,7 @@ export function EditDialog({
               <Label>Date</Label>
               <div className="flex items-center gap-2 mt-1">
                 <Calendar className="h-4 w-4 text-gray-400" />
-                <span>{formatDateDisplay(pickup.date)}</span>
+                <span>{formatMalaysiaDate(pickup.date)}</span>
               </div>
             </div>
             <div>

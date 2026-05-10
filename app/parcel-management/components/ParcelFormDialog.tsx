@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -20,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, Edit } from "lucide-react";
+import { Save } from "lucide-react";
 import { Parcel, ParcelFormData, ParcelStatus, ParcelPriority } from "./types";
 
 interface ParcelFormDialogProps {
@@ -32,6 +31,9 @@ interface ParcelFormDialogProps {
   onFormChange: (data: ParcelFormData) => void;
   onSave: () => void;
   onEnableEdit: () => void;
+  isSaving?: boolean;
+  message?: string | null;
+  error?: string | null;
 }
 
 export function ParcelFormDialog({
@@ -42,8 +44,12 @@ export function ParcelFormDialog({
   formData,
   onFormChange,
   onSave,
-  onEnableEdit,
+  isSaving,
+  message,
+  error,
 }: ParcelFormDialogProps) {
+  const disabled = !isManualEntry && !!selectedParcel;
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-4xl max-h-[90svh] overflow-y-auto">
@@ -64,15 +70,20 @@ export function ParcelFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid h-auto w-full grid-cols-3">
-            <TabsTrigger value="details" className="text-xs sm:text-sm">Parcel Details</TabsTrigger>
-            <TabsTrigger value="sender" className="text-xs sm:text-sm">Sender Info</TabsTrigger>
-            <TabsTrigger value="receiver" className="text-xs sm:text-sm">Receiver Info</TabsTrigger>
-          </TabsList>
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+            {message}
+          </div>
+        )}
 
-          {/* ================= PARCEL DETAILS ================= */}
-          <TabsContent value="details" className="space-y-4 pt-4">
+        <div className="space-y-5">
+          <section className="rounded-lg border p-4">
+            <h3 className="mb-4 font-semibold">Parcel Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Parcel ID</Label>
@@ -100,7 +111,7 @@ export function ParcelFormDialog({
                   onChange={(e) =>
                     onFormChange({ ...formData, weight: e.target.value })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -112,7 +123,7 @@ export function ParcelFormDialog({
                   onChange={(e) =>
                     onFormChange({ ...formData, dimensions: e.target.value })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -124,7 +135,7 @@ export function ParcelFormDialog({
                   onValueChange={(value: ParcelPriority) =>
                     onFormChange({ ...formData, priority: value })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -145,7 +156,7 @@ export function ParcelFormDialog({
                 onValueChange={(value: ParcelStatus) =>
                   onFormChange({ ...formData, status: value })
                 }
-                disabled={!isManualEntry && !!selectedParcel}
+                disabled={disabled}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -157,10 +168,10 @@ export function ParcelFormDialog({
                 </SelectContent>
               </Select>
             </div>
-          </TabsContent>
+          </section>
 
-          {/* ================= SENDER INFO ================= */}
-          <TabsContent value="sender" className="space-y-4 pt-4">
+          <section className="rounded-lg border p-4">
+            <h3 className="mb-4 font-semibold">Sender Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Sender Name *</Label>
@@ -169,7 +180,7 @@ export function ParcelFormDialog({
                   onChange={(e) =>
                     onFormChange({ ...formData, sender: e.target.value })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -184,7 +195,7 @@ export function ParcelFormDialog({
                       senderPhone: e.target.value,
                     })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -200,15 +211,15 @@ export function ParcelFormDialog({
                     senderAddress: e.target.value,
                   })
                 }
-                disabled={!isManualEntry && !!selectedParcel}
+                disabled={disabled}
                 rows={3}
                 required
               />
             </div>
-          </TabsContent>
+          </section>
 
-          {/* ================= RECEIVER INFO ================= */}
-          <TabsContent value="receiver" className="space-y-4 pt-4">
+          <section className="rounded-lg border p-4">
+            <h3 className="mb-4 font-semibold">Receiver Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Receiver Name *</Label>
@@ -217,7 +228,7 @@ export function ParcelFormDialog({
                   onChange={(e) =>
                     onFormChange({ ...formData, receiver: e.target.value })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -235,7 +246,7 @@ export function ParcelFormDialog({
                       receiverEmail: e.target.value,
                     })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -250,7 +261,7 @@ export function ParcelFormDialog({
                       receiverPhone: e.target.value,
                     })
                   }
-                  disabled={!isManualEntry && !!selectedParcel}
+                  disabled={disabled}
                   required
                 />
               </div>
@@ -266,13 +277,13 @@ export function ParcelFormDialog({
                     receiverAddress: e.target.value,
                   })
                 }
-                disabled={!isManualEntry && !!selectedParcel}
+                disabled={disabled}
                 rows={3}
                 required
               />
             </div>
-          </TabsContent>
-        </Tabs>
+          </section>
+        </div>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -283,19 +294,10 @@ export function ParcelFormDialog({
             <Button
               className="bg-blue-600 hover:bg-blue-700 gap-2"
               onClick={onSave}
+              disabled={isSaving}
             >
               <Save className="h-4 w-4" />
-              {selectedParcel ? "Update Parcel" : "Create Parcel"}
-            </Button>
-          )}
-
-          {selectedParcel && !isManualEntry && (
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 gap-2"
-              onClick={onEnableEdit}
-            >
-              <Edit className="h-4 w-4" />
-              Edit Parcel
+              {isSaving ? "Saving..." : selectedParcel ? "Update Parcel" : "Create Parcel"}
             </Button>
           )}
         </DialogFooter>

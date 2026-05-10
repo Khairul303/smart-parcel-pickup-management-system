@@ -33,9 +33,9 @@ import {
   normalizePickupStatus,
   PICKUP_STATUS_BADGE_CLASSES,
 } from "@/lib/pickup-status"
+import { formatMalaysiaDate } from "@/lib/pickup-scheduling"
 
 // ⏱ Average handling time (minutes per customer)
-const AVG_HANDLE_MINUTES = 5
 
 interface PickupHistoryProps {
   pickups: PickupSchedule[]
@@ -82,11 +82,16 @@ export function PickupHistory({
   // ======================
   // QUEUE → ESTIMATED WAIT
   // ======================
-  const getEstimatedWait = (queue?: string) => {
+  const getEstimatedWait = (pickup: PickupSchedule) => {
+    if (typeof pickup.estimatedWaitMinutes === "number") {
+      return `${pickup.estimatedWaitMinutes} min`
+    }
+
+    const queue = pickup.queueNumber
     if (!queue) return "-"
     const num = Number(queue.replace("Q-", ""))
     if (isNaN(num) || num <= 1) return "0 min"
-    return `${(num - 1) * AVG_HANDLE_MINUTES} min`
+    return `${num - 1} min`
   }
 
   return (
@@ -136,7 +141,11 @@ export function PickupHistory({
                 <div className="min-w-0">
                   <div className="truncate font-medium">{pickup.id}</div>
                   <div className="text-sm text-gray-500">
-                    {new Date(pickup.date).toLocaleDateString()} at{" "}
+                    {formatMalaysiaDate(pickup.date, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })} at{" "}
                     {pickup.timeSlot}
                   </div>
                 </div>
@@ -150,7 +159,7 @@ export function PickupHistory({
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Est. Wait</div>
-                  <div>{getEstimatedWait(pickup.queueNumber)}</div>
+                  <div>{getEstimatedWait(pickup)}</div>
                 </div>
                 <div className="col-span-2">
                   <div className="text-xs text-gray-500">Parcel</div>
@@ -218,7 +227,11 @@ export function PickupHistory({
                   <TableCell className="px-2">
                     <div>
                       <div className="font-medium leading-tight">
-                        {new Date(pickup.date).toLocaleDateString()}
+                        {formatMalaysiaDate(pickup.date, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
                       </div>
                       <div className="truncate text-xs text-gray-500">
                         {pickup.timeSlot}
@@ -231,7 +244,7 @@ export function PickupHistory({
                   </TableCell>
 
                   <TableCell className="px-2 text-sm text-gray-600">
-                    {getEstimatedWait(pickup.queueNumber)}
+                    {getEstimatedWait(pickup)}
                   </TableCell>
 
                   <TableCell className="truncate px-2">

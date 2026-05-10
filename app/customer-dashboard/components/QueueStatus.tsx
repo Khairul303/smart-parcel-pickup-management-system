@@ -165,7 +165,7 @@ export function QueueStatus() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold">Latest Queue</h3>
+            <h3 className="font-semibold">Your Active Bookings</h3>
 
             {loading ? (
               <div className="space-y-2">
@@ -178,7 +178,7 @@ export function QueueStatus() {
               </div>
             ) : queueItems.length === 0 ? (
               <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                No active queue bookings at the moment.
+                You do not have active queue bookings at the moment.
               </div>
             ) : (
               <div className="space-y-2">
@@ -198,10 +198,6 @@ export function QueueStatus() {
                       <Badge variant="outline">
                         {formatStatus(item.status)}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {item.trackingIds.length} parcel
-                        {item.trackingIds.length === 1 ? "" : "s"}
-                      </span>
                     </div>
                   </div>
                 ))}

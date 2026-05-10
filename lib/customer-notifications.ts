@@ -4,6 +4,12 @@ const isMissingNotificationsTableError = (message?: string | null) =>
   message?.toLowerCase().includes("public.notifications") &&
   message.toLowerCase().includes("schema cache")
 
+const logNotificationWarning = (message: string, error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(message, error)
+  }
+}
+
 export type CustomerNotificationType =
   | "booking_confirmation"
   | "booking_update"
@@ -66,7 +72,7 @@ export const createCustomerNotification = async ({
   if (error) {
     if (isMissingNotificationsTableError(error.message)) return null
 
-    console.error("Failed to create notification:", error)
+    logNotificationWarning("Customer notification was skipped:", error)
     return null
   }
 
@@ -82,7 +88,7 @@ export const createNotificationForCurrentUser = async (
   } = await supabase.auth.getUser()
 
   if (error || !user) {
-    if (error) console.error("Unable to load current user for notification:", error)
+    if (error) logNotificationWarning("Unable to load current user for notification:", error)
     return null
   }
 
@@ -103,7 +109,7 @@ const findProfileByEmail = async (email?: string | null) => {
     .maybeSingle()
 
   if (error) {
-    console.error("Failed to resolve customer profile by email:", error)
+    logNotificationWarning("Customer profile lookup by email was skipped:", error)
     return null
   }
 
@@ -121,7 +127,7 @@ const findProfileByPhone = async (phone?: string | null) => {
     .maybeSingle()
 
   if (error) {
-    console.error("Failed to resolve customer profile by phone:", error)
+    logNotificationWarning("Customer profile lookup by phone was skipped:", error)
     return null
   }
 

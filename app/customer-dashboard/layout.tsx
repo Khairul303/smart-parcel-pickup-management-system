@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { RoleGate } from "@/components/auth/RoleGate"
 
 export const metadata: Metadata = {
   title: "ParcelTrack - Customer Dashboard",
@@ -10,5 +11,5 @@ export default function CustomerDashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <RoleGate allowedRoles={["customer"]}>{children}</RoleGate>
 }

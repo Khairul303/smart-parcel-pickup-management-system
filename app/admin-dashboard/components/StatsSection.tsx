@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { CheckCircle, Clock, Package } from "lucide-react"
 
 import {
@@ -10,46 +9,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import supabase from "@/lib/supabase"
 import { PARCEL_STATUS, PARCEL_STATUS_LABEL } from "@/lib/parcel-status"
+import type { AdminParcel } from "@/lib/admin-realtime"
 
-type AdminParcel = {
-  id: string
-  status: string | null
-}
-
-export function StatsSection() {
-  const [parcels, setParcels] = useState<AdminParcel[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let active = true
-
-    const loadStats = async () => {
-      setLoading(true)
-
-      const { data, error } = await supabase
-        .from("parcels")
-        .select("id, status")
-
-      if (!active) return
-
-      if (error) {
-        console.error("Failed to load admin parcel stats:", error)
-        setParcels([])
-      } else {
-        setParcels((data ?? []) as AdminParcel[])
-      }
-
-      setLoading(false)
-    }
-
-    loadStats()
-
-    return () => {
-      active = false
-    }
-  }, [])
+export function StatsSection({
+  parcels,
+  loading,
+}: {
+  parcels: AdminParcel[]
+  loading?: boolean
+}) {
 
   const stats = [
     {
@@ -72,7 +41,10 @@ export function StatsSection() {
     {
       label: PARCEL_STATUS_LABEL[PARCEL_STATUS.COMPLETED],
       value: parcels.filter(
-        (parcel) => parcel.status === PARCEL_STATUS.COMPLETED
+        (parcel) =>
+          parcel.status === PARCEL_STATUS.COMPLETED ||
+          parcel.status === "delivered" ||
+          parcel.status === "collected"
       ).length,
       icon: Clock,
       iconClassName: "text-blue-600",

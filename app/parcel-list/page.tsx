@@ -9,8 +9,14 @@ import { Package as PackageIcon } from "lucide-react"
 
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { RoleGate } from "@/components/auth/RoleGate"
 
 import supabase from "@/lib/supabase"
+import {
+  belongsToCustomerContact,
+  buildCustomerParcelOrFilter,
+  type CustomerContact,
+} from "@/lib/customer-data"
 
 export default function ParcelListPage() {
   const [parcels, setParcels] = useState<Parcel[]>([])
@@ -25,15 +31,49 @@ export default function ParcelListPage() {
     const fetchParcels = async () => {
       setIsLoading(true)
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setParcels([])
+        setIsLoading(false)
+        return
+      }
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("no_telephone")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      const profile: CustomerContact = {
+        id: user.id,
+        email: user.email ?? null,
+        phone: profileData?.no_telephone ?? null,
+      }
+      const customerFilter = buildCustomerParcelOrFilter(profile)
+
+      if (!customerFilter) {
+        setParcels([])
+        setIsLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from("parcels")
         .select("*")
+        .or(customerFilter)
         .order("created_at", { ascending: false })
 
       if (error) {
         console.error("Error fetching parcels:", error)
       } else {
-        setParcels(data || [])
+        setParcels(
+          ((data || []) as Parcel[]).filter((parcel) =>
+            belongsToCustomerContact(parcel, profile)
+          )
+        )
       }
 
       setIsLoading(false)
@@ -94,10 +134,11 @@ Receiver: ${parcel.receiver}`
   }
 
   return (
-    <SidebarProvider>
-      <CustomerSidebar />
+    <RoleGate allowedRoles={["customer"]}>
+      <SidebarProvider>
+        <CustomerSidebar />
 
-      <SidebarInset className="flex-1 min-h-screen bg-gray-50">
+        <SidebarInset className="flex-1 min-h-screen bg-gray-50">
         {/* ================= HEADER ================= */}
         <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
           <div className="px-4 md:px-8">
@@ -182,7 +223,8 @@ Receiver: ${parcel.receiver}`
             © 2024 ParcelTrack Customer Dashboard. All rights reserved.
           </div>
         </footer>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </RoleGate>
   )
 }

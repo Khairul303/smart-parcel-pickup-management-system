@@ -52,6 +52,11 @@ import { useUserTrackingIds } from "./hooks/useUserTrackingIds"
 
 import supabase from "@/lib/supabase"
 import {
+  belongsToCustomerContact,
+  buildCustomerParcelOrFilter,
+  type CustomerContact,
+} from "@/lib/customer-data"
+import {
   PARCEL_STATUS,
   PARCEL_STATUS_LABEL,
   ParcelStatusFilter,
@@ -85,30 +90,6 @@ type Parcel = {
 }
 
 type StatusFilter = ParcelStatusFilter
-
-type CustomerProfile = {
-  id: string
-  email: string | null
-  phone: string | null
-}
-
-const normalize = (value?: string | null) => value?.trim().toLowerCase() ?? ""
-
-const belongsToCustomer = (parcel: Parcel, profile: CustomerProfile) => {
-  if (parcel.user_id) return parcel.user_id === profile.id
-  if (parcel.customer_id) return parcel.customer_id === profile.id
-  if (parcel.profile_id) return parcel.profile_id === profile.id
-
-  const email = normalize(profile.email)
-  const phone = normalize(profile.phone)
-  const parcelEmail = normalize(parcel.receiver_email)
-  const parcelPhone = normalize(parcel.receiver_phone)
-
-  if (email && parcelEmail) return parcelEmail === email
-  if (phone && parcelPhone) return parcelPhone === phone
-
-  return true
-}
 
 /* =====================
    COMPONENT
@@ -149,19 +130,30 @@ export default function CustomerDashboardPage() {
         .eq("id", user.id)
         .maybeSingle()
 
+      const profile: CustomerContact = {
+        id: user.id,
+        email: user.email ?? null,
+        phone: profileData?.no_telephone ?? null,
+      }
+      const customerFilter = buildCustomerParcelOrFilter(profile)
+
+      if (!customerFilter) {
+        setParcels([])
+        return
+      }
+
       const { data } = await supabase
         .from("parcels")
         .select("*")
+        .or(customerFilter)
         .order("created_at", { ascending: false })
 
       if (data) {
-        const profile: CustomerProfile = {
-          id: user.id,
-          email: user.email ?? null,
-          phone: profileData?.no_telephone ?? null,
-        }
-
-        setParcels((data as Parcel[]).filter((parcel) => belongsToCustomer(parcel, profile)))
+        setParcels(
+          (data as Parcel[]).filter((parcel) =>
+            belongsToCustomerContact(parcel, profile)
+          )
+        )
       }
     }
 

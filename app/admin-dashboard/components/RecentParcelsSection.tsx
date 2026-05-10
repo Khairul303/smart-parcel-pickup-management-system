@@ -3,16 +3,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { AdminParcel } from "@/lib/admin-realtime";
+import { formatRelativeTime, toTitle } from "@/lib/admin-realtime";
 
-const recentParcels = [
-  { id: "PKL001", customer: "John Smith", status: "In Transit", location: "Warehouse A", time: "2 hours ago" },
-  { id: "PKL002", customer: "Sarah Johnson", status: "Delivered", location: "123 Main St", time: "4 hours ago" },
-  { id: "PKL003", customer: "Mike Davis", status: "Pending", location: "Sorting Center", time: "6 hours ago" },
-  { id: "PKL004", customer: "Emma Wilson", status: "In Transit", location: "Distribution Hub", time: "8 hours ago" },
-  { id: "PKL005", customer: "Robert Brown", status: "Processing", location: "Warehouse B", time: "10 hours ago" },
-];
+export function RecentParcelsSection({
+  parcels,
+  loading,
+}: {
+  parcels: AdminParcel[];
+  loading?: boolean;
+}) {
+  const recentParcels = [...parcels]
+    .sort(
+      (a, b) =>
+        new Date(b.created_at ?? b.updated_at ?? 0).getTime() -
+        new Date(a.created_at ?? a.updated_at ?? 0).getTime()
+    )
+    .slice(0, 5);
 
-export function RecentParcelsSection() {
   return (
     <Card className="md:col-span-2">
       <CardHeader>
@@ -28,29 +36,47 @@ export function RecentParcelsSection() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {recentParcels.map((parcel) => (
+          {loading ? (
+            <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+              Loading recent parcels...
+            </div>
+          ) : recentParcels.length === 0 ? (
+            <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+              No parcels have been registered yet.
+            </div>
+          ) : recentParcels.map((parcel) => {
+            const status = parcel.status ?? "unknown";
+
+            return (
             <div key={parcel.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{parcel.id}</span>
+                  <span className="font-medium">{parcel.tracking_id ?? parcel.id}</span>
                   <Badge 
                     variant={
-                      parcel.status === "Delivered" ? "default" :
-                      parcel.status === "In Transit" ? "secondary" :
+                      ["completed", "delivered", "collected"].includes(status) ? "default" :
+                      ["ready", "ready-for-pickup", "in-transit"].includes(status) ? "secondary" :
                       "outline"
                     }
                   >
-                    {parcel.status}
+                    {toTitle(status)}
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">{parcel.customer}</p>
+                <p className="text-sm text-muted-foreground">
+                  {parcel.receiver ?? parcel.sender ?? "Customer not recorded"}
+                </p>
               </div>
               <div className="min-w-0 text-left sm:text-right">
-                <p className="text-sm font-medium">{parcel.location}</p>
-                <p className="text-xs text-muted-foreground">{parcel.time}</p>
+                <p className="text-sm font-medium">
+                  Updated {formatRelativeTime(parcel.updated_at ?? parcel.created_at)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Registered {formatRelativeTime(parcel.created_at)}
+                </p>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

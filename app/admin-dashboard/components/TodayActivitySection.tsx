@@ -4,61 +4,101 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Clock, CheckCircle, Truck, AlertCircle, ArrowUpRight, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { AdminParcel, AdminPickupBooking } from "@/lib/admin-realtime";
+import { formatDateTime, isTodayInMalaysia, toTitle } from "@/lib/admin-realtime";
 
-const todayActivities = [
-  { 
-    id: "ACT001",
-    type: "Parcel Registered",
-    description: "New parcel registered by John Smith",
-    parcelId: "PKL-2024-001",
-    time: "09:30 AM",
-    status: "completed",
-    icon: CheckCircle,
-    color: "text-green-600 bg-green-50"
-  },
-  { 
-    id: "ACT002",
-    type: "Status Update",
-    description: "Parcel PKL-2024-005 departed warehouse",
-    parcelId: "PKL-2024-005",
-    time: "10:15 AM",
-    status: "in-progress",
-    icon: Truck,
-    color: "text-blue-600 bg-blue-50"
-  },
-  { 
-    id: "ACT003",
-    type: "Delivery Attempt",
-    description: "Failed delivery attempt at 123 Main St",
-    parcelId: "PKL-2024-008",
-    time: "11:45 AM",
-    status: "warning",
-    icon: AlertCircle,
-    color: "text-amber-600 bg-amber-50"
-  },
-  { 
-    id: "ACT004",
-    type: "Parcel Delivered",
-    description: "Successfully delivered to Sarah Johnson",
-    parcelId: "PKL-2024-003",
-    time: "02:20 PM",
-    status: "completed",
-    icon: CheckCircle,
-    color: "text-green-600 bg-green-50"
-  },
-  { 
-    id: "ACT005",
-    type: "New Customer",
-    description: "Mike Davis registered new account",
-    parcelId: "N/A",
-    time: "03:10 PM",
-    status: "info",
-    icon: ArrowUpRight,
-    color: "text-purple-600 bg-purple-50"
-  },
-];
+type TodayActivity = {
+  id: string;
+  type: string;
+  description: string;
+  parcelId: string;
+  time: string;
+  status: "completed" | "in-progress" | "warning" | "info";
+  icon: typeof Activity;
+  color: string;
+  createdAt: string;
+};
 
-export function TodayActivitySection() {
+const getTodayActivities = (
+  parcels: AdminParcel[],
+  pickups: AdminPickupBooking[]
+): TodayActivity[] => {
+  const parcelActivities = parcels
+    .filter((parcel) => isTodayInMalaysia(parcel.created_at ?? parcel.updated_at))
+    .map((parcel) => {
+      const status = parcel.status ?? "registered";
+      const isCompleted = ["completed", "delivered", "collected"].includes(status);
+      const isReady = ["ready", "ready-for-pickup"].includes(status);
+
+      return {
+        id: `parcel-${parcel.id}`,
+        type: isReady
+          ? "Parcel Ready"
+          : isCompleted
+            ? "Parcel Collected"
+            : "Parcel Registered",
+        description: `${parcel.tracking_id ?? parcel.id} ${toTitle(status).toLowerCase()}${
+          parcel.receiver ? ` for ${parcel.receiver}` : ""
+        }`,
+        parcelId: parcel.tracking_id ?? parcel.id,
+        time: formatDateTime(parcel.updated_at ?? parcel.created_at),
+        status: isCompleted ? "completed" : isReady ? "in-progress" : "info",
+        icon: isCompleted ? CheckCircle : isReady ? Truck : ArrowUpRight,
+        color: isCompleted
+          ? "text-green-600 bg-green-50"
+          : isReady
+            ? "text-blue-600 bg-blue-50"
+            : "text-purple-600 bg-purple-50",
+        createdAt: parcel.updated_at ?? parcel.created_at ?? "",
+      } satisfies TodayActivity;
+    });
+
+  const pickupActivities = pickups
+    .filter((pickup) => isTodayInMalaysia(pickup.created_at ?? pickup.updated_at))
+    .map((pickup) => {
+      const status = pickup.status ?? "booked";
+      const isCancelled = ["cancelled", "canceled", "no_show"].includes(status);
+      const isCompleted = ["completed", "collected"].includes(status);
+
+      return {
+        id: `pickup-${pickup.pickup_code}`,
+        type: isCancelled
+          ? "Pickup Alert"
+          : isCompleted
+            ? "Pickup Completed"
+            : "Pickup Booking",
+        description: `${pickup.customer_name ?? "Customer"} - ${
+          pickup.queue_number ?? "No queue"
+        } on ${pickup.pickup_date ?? "unscheduled"} ${pickup.time_slot ?? ""}`,
+        parcelId: pickup.tracking_ids?.[0] ?? pickup.pickup_code,
+        time: formatDateTime(pickup.updated_at ?? pickup.created_at),
+        status: isCancelled ? "warning" : isCompleted ? "completed" : "in-progress",
+        icon: isCancelled ? AlertCircle : isCompleted ? CheckCircle : Clock,
+        color: isCancelled
+          ? "text-amber-600 bg-amber-50"
+          : isCompleted
+            ? "text-green-600 bg-green-50"
+            : "text-blue-600 bg-blue-50",
+        createdAt: pickup.updated_at ?? pickup.created_at ?? "",
+      } satisfies TodayActivity;
+    });
+
+  return [...parcelActivities, ...pickupActivities]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 6);
+};
+
+export function TodayActivitySection({
+  parcels,
+  pickups,
+  loading,
+}: {
+  parcels: AdminParcel[];
+  pickups: AdminPickupBooking[];
+  loading?: boolean;
+}) {
+  const todayActivities = getTodayActivities(parcels, pickups);
+
   return (
     <Card>
       <CardHeader>
@@ -68,7 +108,7 @@ export function TodayActivitySection() {
               <Activity className="h-5 w-5" />
               Today Activity
             </CardTitle>
-            <CardDescription>Real-time updates and parcel activities</CardDescription>
+            <CardDescription>Malaysia-time operational activity for today</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm">
@@ -80,7 +120,15 @@ export function TodayActivitySection() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {todayActivities.map((activity) => {
+          {loading ? (
+            <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+              Loading live activity...
+            </div>
+          ) : todayActivities.length === 0 ? (
+            <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+              No activity recorded for today yet.
+            </div>
+          ) : todayActivities.map((activity) => {
             const Icon = activity.icon;
             return (
               <div 

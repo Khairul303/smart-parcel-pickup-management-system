@@ -139,11 +139,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="start" className="w-48">
-      <DropdownMenuItem asChild>
-        <a href="/customer-dashboard/profile">
-          <User className="mr-2 h-4 w-4" />
-          View Profile
-        </a>
+      <DropdownMenuItem disabled>
+        <User className="mr-2 h-4 w-4" />
+        Admin Account
       </DropdownMenuItem>
 
 <DropdownMenuItem

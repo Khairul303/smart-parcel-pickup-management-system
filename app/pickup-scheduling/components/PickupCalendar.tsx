@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Clock, Calendar } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react"
 import supabase from "@/lib/supabase"
 import {
   Card,
@@ -11,10 +11,17 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import {
+  createMalaysiaDateString,
+  formatMalaysiaDate,
+  getDaysInMonth,
+  getMalaysiaDateString,
+  getMalaysiaMonthParts,
+  getWeekdayShort,
+  PICKUP_TIME_SLOTS,
+  SLOT_QUOTA_UNITS,
+} from "@/lib/pickup-scheduling"
 
-// ======================
-// TYPES
-// ======================
 interface PickupCalendarProps {
   selectedDate: string
   selectedTimeSlot: string
@@ -29,104 +36,124 @@ interface AvailableSlot {
   remaining: number
 }
 
-interface DateSlot {
-  date: string
-  day: string
-  slotsAvailable: number
-}
-
 interface TimeSlot {
   time: string
   remaining: number
 }
 
-// ======================
-// COMPONENT
-// ======================
 export function PickupCalendar({
   selectedDate,
   selectedTimeSlot,
   onDateSelect,
   onTimeSlotSelect,
   onBookingOpen,
+  refreshKey,
 }: PickupCalendarProps) {
-  const [availableDates, setAvailableDates] = useState<DateSlot[]>([])
+  const today = getMalaysiaDateString()
+  const initialMonth = getMalaysiaMonthParts(selectedDate || today)
+  const [visibleMonth, setVisibleMonth] = useState(initialMonth)
+  const [dateAvailability, setDateAvailability] = useState<Record<string, number>>({})
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
 
-  // ======================
-  // GENERATE NEXT 14 DAYS
-  // ======================
+  const monthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "Asia/Kuala_Lumpur",
+      }).format(new Date(Date.UTC(visibleMonth.year, visibleMonth.monthIndex, 1, 12))),
+    [visibleMonth]
+  )
+
+  const monthDates = useMemo(() => {
+    const days = getDaysInMonth(visibleMonth.year, visibleMonth.monthIndex)
+
+    return Array.from({ length: days }, (_, index) => {
+      const day = index + 1
+      const date = createMalaysiaDateString(
+        visibleMonth.year,
+        visibleMonth.monthIndex,
+        day
+      )
+
+      return {
+        date,
+        day,
+        weekday: getWeekdayShort(date),
+        isPast: date < today,
+      }
+    })
+  }, [today, visibleMonth])
+
   useEffect(() => {
     let active = true
 
-    const generateDates = async () => {
-      const dates: DateSlot[] = []
+    const loadMonthAvailability = async () => {
+      const entries = await Promise.all(
+        monthDates.map(async ({ date, isPast }) => {
+          if (isPast) return [date, 0] as const
 
-      for (let i = 0; i < 14; i++) {
-        const d = new Date()
-        d.setDate(d.getDate() + i)
+          const { data, error } = await supabase.rpc("get_available_slots", {
+            p_date: date,
+          })
 
-        const dateStr = d.toISOString().split("T")[0]
+          if (error) {
+            return [date, PICKUP_TIME_SLOTS.length * SLOT_QUOTA_UNITS] as const
+          }
 
-        const { data, error } = await supabase.rpc("get_available_slots", {
-          p_date: dateStr,
+          const slots: AvailableSlot[] = data ?? []
+          const remaining = slots.reduce((sum, slot) => sum + slot.remaining, 0)
+
+          return [date, remaining] as const
         })
+      )
 
-
-        if (error) continue
-
-        const slots: AvailableSlot[] = data ?? []
-
-        const totalRemaining = slots.reduce(
-          (sum, slot) => sum + slot.remaining,
-          0
-        )
-
-        dates.push({
-          date: dateStr,
-          day: d.toLocaleDateString("en-US", { weekday: "short" }),
-          slotsAvailable: totalRemaining,
-        })
-      }
-
-      if (active) {
-        setAvailableDates(dates)
-      }
+      if (active) setDateAvailability(Object.fromEntries(entries))
     }
 
-    generateDates()
+    loadMonthAvailability()
 
     return () => {
       active = false
     }
-  }, [])
+  }, [monthDates, refreshKey])
 
-  // ======================
-  // LOAD TIME SLOTS (SAFE)
-  // ======================
   useEffect(() => {
     let active = true
 
     const loadTimeSlots = async () => {
-      // ✅ handle empty date WITHOUT setState sync
       if (!selectedDate) {
         if (active) setTimeSlots([])
         return
       }
 
-    const { data, error } = await supabase.rpc("get_available_slots", {
-      p_date: selectedDate,
-    })
+      const { data, error } = await supabase.rpc("get_available_slots", {
+        p_date: selectedDate,
+      })
 
+      if (!active) return
 
-      if (error || !active) return
+      if (error) {
+        setTimeSlots(
+          PICKUP_TIME_SLOTS.map((time) => ({
+            time,
+            remaining: SLOT_QUOTA_UNITS,
+          }))
+        )
+        return
+      }
 
-      const slots: AvailableSlot[] = data ?? []
+      const slotMap = new Map(
+        ((data ?? []) as AvailableSlot[]).map((slot) => [
+          slot.time_slot,
+          Math.max(slot.remaining, 0),
+        ])
+      )
 
       setTimeSlots(
-        slots.map((slot) => ({
-          time: slot.time_slot,
-          remaining: slot.remaining,
+        PICKUP_TIME_SLOTS.map((time) => ({
+          time,
+          remaining: slotMap.get(time) ?? SLOT_QUOTA_UNITS,
         }))
       )
     }
@@ -136,24 +163,37 @@ export function PickupCalendar({
     return () => {
       active = false
     }
-  }, [selectedDate])
+  }, [refreshKey, selectedDate])
 
-  // ======================
-  // FORMAT DATE DISPLAY
-  // ======================
-  const formatDateDisplay = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+  const changeMonth = (offset: number) => {
+    const next = new Date(
+      visibleMonth.year,
+      visibleMonth.monthIndex + offset,
+      1
+    )
+
+    setVisibleMonth({
+      year: next.getFullYear(),
+      monthIndex: next.getMonth(),
     })
   }
 
-  // ======================
-  // UI (UNCHANGED)
-  // ======================
+  const handleDateSelect = (date: string) => {
+    onDateSelect(date)
+    onTimeSlotSelect("")
+  }
+
+  const visibleMonthStart = createMalaysiaDateString(
+    visibleMonth.year,
+    visibleMonth.monthIndex,
+    1
+  )
+  const currentMonthStart = createMalaysiaDateString(
+    getMalaysiaMonthParts(today).year,
+    getMalaysiaMonthParts(today).monthIndex,
+    1
+  )
+
   return (
     <Card>
       <CardHeader>
@@ -164,90 +204,132 @@ export function PickupCalendar({
       </CardHeader>
 
       <CardContent>
-        {/* DATE SELECTION */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-4">Select Pickup Date</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
-            {availableDates.map((d) => (
-              <button
-                key={d.date}
-                onClick={() => onDateSelect(d.date)}
-                disabled={d.slotsAvailable === 0}
-                className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${
-                  selectedDate === d.date
-                    ? "border-primary bg-primary/5"
-                    : "border-gray-200 hover:border-primary/50"
-                } ${
-                  d.slotsAvailable === 0
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold">Select Pickup Date</h3>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => changeMonth(-1)}
+                disabled={visibleMonthStart <= currentMonthStart}
               >
-                <div className="text-sm text-gray-500">{d.day}</div>
-                <div className="text-xl font-bold my-1">
-                  {new Date(d.date).getDate()}
-                </div>
-                <div className="text-xs">
-                  {d.slotsAvailable === 0 ? (
-                    <span className="text-red-600">Full</span>
-                  ) : (
-                    <span className="text-green-600">
-                      {d.slotsAvailable} slots
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))}
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-[128px] text-center text-sm font-medium">
+                {monthLabel}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => changeMonth(1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+            {monthDates.map((date) => {
+              const slotsAvailable = dateAvailability[date.date] ?? 0
+              const disabled = date.isPast || slotsAvailable === 0
+
+              return (
+                <button
+                  key={date.date}
+                  type="button"
+                  onClick={() => handleDateSelect(date.date)}
+                  disabled={disabled}
+                  className={`min-h-[68px] rounded-md border px-2 py-2 text-left transition ${
+                    selectedDate === date.date
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-gray-200 bg-white hover:border-primary hover:bg-primary/5"
+                  } ${disabled ? "cursor-not-allowed opacity-45" : ""}`}
+                >
+                  <div className="text-[11px] font-medium opacity-80">
+                    {date.weekday}
+                  </div>
+                  <div className="text-lg font-semibold leading-tight">
+                    {date.day}
+                  </div>
+                  <div
+                    className={`mt-1 truncate text-[11px] ${
+                      selectedDate === date.date
+                        ? "text-primary-foreground"
+                        : slotsAvailable <= 20
+                          ? "text-amber-600"
+                          : "text-green-600"
+                    }`}
+                  >
+                    {date.isPast
+                      ? "Past"
+                      : slotsAvailable === 0
+                        ? "Full"
+                        : `${slotsAvailable} slots`}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {/* TIME SLOT SELECTION */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-4">Available Time Slots</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {timeSlots.map((slot) => (
-              <button
-                key={slot.time}
-                onClick={() => onTimeSlotSelect(slot.time)}
-                disabled={slot.remaining === 0}
-                className={`p-4 rounded-lg border transition-all ${
-                  selectedTimeSlot === slot.time
-                    ? "border-primary bg-primary text-white"
-                    : "border-gray-200 hover:border-primary hover:bg-primary/5"
-                } ${
-                  slot.remaining === 0
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-medium">{slot.time}</span>
-                </div>
-                <div className="mt-1 text-xs text-center">
-                  {slot.remaining === 0 ? (
-                    <span className="text-red-600">Full</span>
-                  ) : (
-                    <span className="text-green-600">
-                      {slot.remaining} left
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+          <h3 className="mb-4 text-lg font-semibold">Available Time Slots</h3>
+          {!selectedDate ? (
+            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              Select a pickup date to view time slots.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {timeSlots.map((slot) => {
+                const isFull = slot.remaining <= 0
+                const isSelected = selectedTimeSlot === slot.time
+
+                return (
+                  <button
+                    key={slot.time}
+                    type="button"
+                    onClick={() => onTimeSlotSelect(slot.time)}
+                    disabled={isFull}
+                    className={`rounded-md border p-3 text-left transition ${
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-gray-200 bg-white hover:border-primary hover:bg-primary/5"
+                    } ${isFull ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm font-medium">{slot.time}</span>
+                    </div>
+                    <div
+                      className={`mt-2 text-xs ${
+                        isSelected
+                          ? "text-primary-foreground"
+                          : slot.remaining <= 10
+                            ? "text-amber-600"
+                            : "text-green-600"
+                      }`}
+                    >
+                      {isFull ? "Full" : `${slot.remaining} slots available`}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* SELECTED DETAILS */}
         {(selectedDate || selectedTimeSlot) && (
           <Card className="mb-6">
             <CardContent className="p-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
                   <h4 className="font-semibold">Selected Appointment</h4>
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4" />
-                    <span>{formatDateDisplay(selectedDate)}</span>
+                    <span>{formatMalaysiaDate(selectedDate)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4" />

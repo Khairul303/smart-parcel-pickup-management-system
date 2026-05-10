@@ -66,7 +66,7 @@ export function PickupList({
       case "active":
         return filteredPickups.filter(
           (p) =>
-            (p.status === "booked" &&
+            ((p.status === "booked" || p.status === "upcoming") &&
               p.preparation_status === "prepared") ||
             p.status === "checked_in"
         )
@@ -261,7 +261,7 @@ export function PickupList({
                         </Button>
                       )}
 
-                      {pickup.status === "booked" &&
+                      {(pickup.status === "booked" || pickup.status === "upcoming") &&
                         pickup.preparation_status ===
                           "prepared" && (
                           <Button
