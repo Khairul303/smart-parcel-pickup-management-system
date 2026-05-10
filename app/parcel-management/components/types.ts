@@ -8,6 +8,7 @@ export interface Parcel {
   receiver: string;
   senderPhone: string;
   receiverPhone: string;
+  receiverEmail?: string;
   senderAddress: string;
   receiverAddress: string;
   status: ParcelStatus;

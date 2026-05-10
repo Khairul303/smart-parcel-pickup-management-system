@@ -35,8 +35,8 @@ export interface Pickup {
   time_slot: string
   queue_number: string           // Q-001
   customer_name: string
+  customer_email?: string | null
   customer_phone?: string
-  customer_email?: string
 
   tracking_ids: string[]         // MULTIPLE parcels
   parcel_count?: number          // derived from tracking_ids.length

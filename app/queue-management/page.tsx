@@ -37,6 +37,7 @@ import { SummaryCard } from "./components/summary-card"
 import { Filters } from "./components/filters"
 import { PickupList } from "./components/pickup-list"
 import { QueueStats } from "./components/queue-stats"
+import { createCustomerNotificationByContact } from "@/lib/customer-notifications"
 
 /* =====================
    DB ROW TYPE
@@ -47,6 +48,7 @@ interface PickupRow {
   time_slot: string
   queue_number: string | null
   customer_name: string
+  customer_email: string | null
   customer_phone: string | null
   tracking_ids: string[] | null
   status: "booked" | "checked_in" | "collected" | "cancelled" | "no_show"
@@ -87,6 +89,7 @@ export default function PickupManagementPage() {
         time_slot,
         queue_number,
         customer_name,
+        customer_email,
         customer_phone,
         tracking_ids,
         status,
@@ -110,6 +113,7 @@ export default function PickupManagementPage() {
             time_slot: p.time_slot,
             queue_number: p.queue_number ?? "-",
             customer_name: p.customer_name,
+            customer_email: p.customer_email,
             customer_phone: p.customer_phone ?? undefined,
             tracking_ids: p.tracking_ids ?? [],
             parcel_count: p.tracking_ids?.length ?? 0,
@@ -184,6 +188,15 @@ export default function PickupManagementPage() {
       .update({ preparation_status: "prepared" })
       .eq("pickup_code", pickup.id)
 
+    await createCustomerNotificationByContact({
+      email: pickup.customer_email,
+      phone: pickup.customer_phone,
+      title: "Queue Updated",
+      message: "Your parcel has been prepared for pickup.",
+      type: "queue_update",
+      relatedId: pickup.id,
+    })
+
     loadPickups()
   }
 
@@ -203,6 +216,15 @@ export default function PickupManagementPage() {
       .update({ status: "checked_in" })
       .eq("pickup_code", pickup.id)
 
+    await createCustomerNotificationByContact({
+      email: pickup.customer_email,
+      phone: pickup.customer_phone,
+      title: "Queue Updated",
+      message: `Your queue status has been updated. Queue number: ${pickup.queue_number}.`,
+      type: "queue_update",
+      relatedId: pickup.id,
+    })
+
     loadPickups()
   }
 
@@ -211,6 +233,15 @@ export default function PickupManagementPage() {
       .from("pickup_bookings")
       .update({ status: "collected" })
       .eq("pickup_code", pickup.id)
+
+    await createCustomerNotificationByContact({
+      email: pickup.customer_email,
+      phone: pickup.customer_phone,
+      title: "Pickup Collected",
+      message: "Your pickup has been marked as collected.",
+      type: "queue_update",
+      relatedId: pickup.id,
+    })
 
     loadPickups()
   }

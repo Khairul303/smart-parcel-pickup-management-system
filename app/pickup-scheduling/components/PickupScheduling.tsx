@@ -13,6 +13,7 @@ import {
   normalizePickupStatus,
 } from "@/lib/pickup-status"
 import type { PickupStatus } from "@/lib/pickup-status"
+import { createNotificationForCurrentUser } from "@/lib/customer-notifications"
 
 // ======================
 // TYPES
@@ -160,6 +161,13 @@ export function PickupScheduling({
       return
     }
 
+    await createNotificationForCurrentUser({
+      title: "Pickup Booking Created",
+      message: "Your pickup booking has been created successfully.",
+      type: "booking_confirmation",
+      relatedId: `${newPickup.date} ${newPickup.timeSlot}`,
+    })
+
     setRefreshKey((prev) => prev + 1)
     setSelectedTimeSlot("")
     onBookingDialogChange?.(false)
@@ -187,6 +195,13 @@ export function PickupScheduling({
       return
     }
 
+    await createNotificationForCurrentUser({
+      title: "Pickup Booking Updated",
+      message: "Your pickup booking details have been updated.",
+      type: "booking_update",
+      relatedId: updatedPickup.id,
+    })
+
     setIsEditDialogOpen(false)
     setEditingPickup(null)
     setRefreshKey((prev) => prev + 1)
@@ -211,6 +226,13 @@ export function PickupScheduling({
       alert("Failed to cancel booking")
       return
     }
+
+    await createNotificationForCurrentUser({
+      title: "Pickup Cancelled",
+      message: "Your pickup booking has been cancelled.",
+      type: "booking_cancelled",
+      relatedId: pickupId,
+    })
 
     setRefreshKey((prev) => prev + 1)
   }

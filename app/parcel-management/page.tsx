@@ -27,6 +27,7 @@ import { StatsPanel } from "./components/StatsPanel";
 import { statusConfig, priorityConfig } from "./data/parcels";
 import { Parcel, ParcelFormData } from "./components/types";
 import QrScanner from "./components/QrScanner";
+import { createCustomerNotificationByContact } from "@/lib/customer-notifications";
 
 
 export default function ParcelManagementPage() {
@@ -121,6 +122,34 @@ export default function ParcelManagementPage() {
     ) && (statusFilter === "all" || p.status === statusFilter);
   });
 
+  const getParcelStatusMessage = (status: string, trackingId: string) => {
+    if (status === "ready") {
+      return {
+        title: "Parcel Ready to Pickup",
+        message: `Your parcel ${trackingId} is ready for pickup.`,
+      };
+    }
+
+    if (status === "delivered") {
+      return {
+        title: "Parcel Collected",
+        message: `Your parcel ${trackingId} has been collected.`,
+      };
+    }
+
+    if (status === "pending") {
+      return {
+        title: "Parcel Status Updated",
+        message: `Your parcel ${trackingId} is pending.`,
+      };
+    }
+
+    return {
+      title: "Parcel Status Updated",
+      message: `Your parcel ${trackingId} status has been updated to ${status}.`,
+    };
+  };
+
   /* 📷 QR SCAN (AUTO SAVE) */
   /* 📦 STAFF: REGISTER ARRIVED PARCEL */
 const handleScanQR = () => {
@@ -164,6 +193,33 @@ const handleScanSuccess = async (trackingId: string) => {
   setScanResult(trackingId);
 };
 
+  const openParcelDialog = (parcel: Parcel, editable = false) => {
+    const dbParcel = parcel as Parcel & {
+      sender_phone?: string | null;
+      receiver_phone?: string | null;
+      receiver_email?: string | null;
+      sender_address?: string | null;
+      receiver_address?: string | null;
+    };
+
+    setSelectedParcel(parcel);
+    setIsManualEntry(editable);
+    setParcelForm({
+      sender: parcel.sender ?? "",
+      receiver: parcel.receiver ?? "",
+      senderPhone: parcel.senderPhone ?? dbParcel.sender_phone ?? "",
+      receiverPhone: parcel.receiverPhone ?? dbParcel.receiver_phone ?? "",
+      receiverEmail: parcel.receiverEmail ?? dbParcel.receiver_email ?? "",
+      senderAddress: parcel.senderAddress ?? dbParcel.sender_address ?? "",
+      receiverAddress: parcel.receiverAddress ?? dbParcel.receiver_address ?? "",
+      weight: parcel.weight ?? "",
+      dimensions: parcel.dimensions ?? "",
+      priority: parcel.priority ?? "Normal",
+      status: parcel.status ?? "pending",
+    });
+    setIsDialogOpen(true);
+  };
+
 
   /* ✍️ MANUAL ENTRY */
   const handleManualEntry = () => {
@@ -201,6 +257,7 @@ const handleScanSuccess = async (trackingId: string) => {
         receiver: parcelForm.receiver,
         sender_phone: parcelForm.senderPhone,
         receiver_phone: parcelForm.receiverPhone,
+        receiver_email: parcelForm.receiverEmail,
         sender_address: parcelForm.senderAddress,
         receiver_address: parcelForm.receiverAddress,
         weight: parcelForm.weight,
@@ -215,6 +272,20 @@ const handleScanSuccess = async (trackingId: string) => {
         p.id === selectedParcel.id ? { ...p, ...parcelForm } : p
       )
     );
+
+    const statusMessage = getParcelStatusMessage(
+      parcelForm.status,
+      selectedParcel.tracking_id
+    );
+
+    await createCustomerNotificationByContact({
+      email: parcelForm.receiverEmail,
+      phone: parcelForm.receiverPhone,
+      title: statusMessage.title,
+      message: statusMessage.message,
+      type: "parcel_status",
+      relatedId: selectedParcel.tracking_id,
+    });
   }
 
   // INSERT new parcel (manual entry)
@@ -229,6 +300,7 @@ const handleScanSuccess = async (trackingId: string) => {
         receiver: parcelForm.receiver,
         sender_phone: parcelForm.senderPhone,
         receiver_phone: parcelForm.receiverPhone,
+        receiver_email: parcelForm.receiverEmail,
         sender_address: parcelForm.senderAddress,
         receiver_address: parcelForm.receiverAddress,
         weight: parcelForm.weight,
@@ -245,6 +317,26 @@ const handleScanSuccess = async (trackingId: string) => {
     }
 
     setParcels((prev) => [data, ...prev]);
+
+    await createCustomerNotificationByContact({
+      email: parcelForm.receiverEmail,
+      phone: parcelForm.receiverPhone,
+      title: "Parcel Registered",
+      message: `Your parcel ${trackingId} has been registered in the system.`,
+      type: "parcel_registered",
+      relatedId: trackingId,
+    });
+
+    if (parcelForm.status === "ready") {
+      await createCustomerNotificationByContact({
+        email: parcelForm.receiverEmail,
+        phone: parcelForm.receiverPhone,
+        title: "Parcel Ready to Pickup",
+        message: `Your parcel ${trackingId} is ready for pickup.`,
+        type: "parcel_status",
+        relatedId: trackingId,
+      });
+    }
   }
 
   setIsDialogOpen(false);
@@ -318,12 +410,10 @@ const handleScanSuccess = async (trackingId: string) => {
             onSearchChange={setSearch}
             onStatusFilterChange={setStatusFilter}
             onViewParcel={(p) => {
-              setSelectedParcel(p);
-              setIsDialogOpen(true);
+              openParcelDialog(p);
             }}
             onEdit={(p) => {
-              setSelectedParcel(p);
-              setIsDialogOpen(true);
+              openParcelDialog(p, true);
             }}
             onDelete={handleDeleteParcel}
             statusConfig={statusConfig}
