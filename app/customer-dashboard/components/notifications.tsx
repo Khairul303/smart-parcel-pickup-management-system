@@ -8,6 +8,7 @@ import {
   Info,
   Package,
   RefreshCw,
+  Trash2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -96,30 +97,39 @@ const formatNotificationTime = (date: string) =>
 const NotificationItem = ({
   notification,
   onMarkAsRead,
+  onDelete,
 }: {
   notification: CustomerNotification
   onMarkAsRead: (id: string) => void
+  onDelete: (id: string) => void
 }) => {
   const config =
     notificationConfig[notification.type] ?? notificationConfig.system
   const Icon = config.icon
 
   return (
-    <button
-      type="button"
+    <div
       className={`w-full rounded-lg border p-4 text-left transition ${
         notification.is_read
           ? "bg-white hover:bg-gray-50"
           : "border-blue-100 bg-blue-50"
       }`}
-      onClick={() => onMarkAsRead(notification.id)}
     >
       <div className="flex gap-3">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${config.bg}`}>
+        <button
+          type="button"
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${config.bg}`}
+          onClick={() => onMarkAsRead(notification.id)}
+          aria-label={`Mark ${notification.title} as read`}
+        >
           <Icon className={`h-5 w-5 ${config.color}`} />
-        </div>
+        </button>
 
-        <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={() => onMarkAsRead(notification.id)}
+        >
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h4 className="font-semibold text-sm">{notification.title}</h4>
@@ -141,13 +151,24 @@ const NotificationItem = ({
               Ref: {notification.related_id}
             </p>
           )}
-        </div>
+        </button>
 
         {!notification.is_read && (
           <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
         )}
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-gray-500 hover:text-red-600"
+          onClick={() => onDelete(notification.id)}
+          aria-label={`Delete ${notification.title}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -159,6 +180,7 @@ export const NotificationsDialog = () => {
     error,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
     reload,
   } = useCustomerNotifications()
 
@@ -227,6 +249,7 @@ export const NotificationsDialog = () => {
                   key={notification.id}
                   notification={notification}
                   onMarkAsRead={markAsRead}
+                  onDelete={deleteNotification}
                 />
               ))}
             </div>

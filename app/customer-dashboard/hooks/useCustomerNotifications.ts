@@ -8,6 +8,11 @@ const isMissingNotificationsTableError = (message?: string | null) =>
   message?.toLowerCase().includes("public.notifications") &&
   message.toLowerCase().includes("schema cache")
 
+const isMissingAudienceColumnError = (message?: string | null) =>
+  message?.toLowerCase().includes("audience") &&
+  (message.toLowerCase().includes("schema cache") ||
+    message.toLowerCase().includes("column"))
+
 const sortNotifications = (items: CustomerNotification[]) =>
   [...items].sort(
     (a, b) =>
@@ -29,12 +34,25 @@ export function useCustomerNotifications() {
     setLoading(true)
     setError(null)
 
-    const { data, error: notificationsError } = await supabase
+    let { data, error: notificationsError } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", ownerId)
+      .eq("audience", "customer")
       .order("created_at", { ascending: false })
       .limit(50)
+
+    if (notificationsError && isMissingAudienceColumnError(notificationsError.message)) {
+      const fallback = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", ownerId)
+        .order("created_at", { ascending: false })
+        .limit(50)
+
+      data = fallback.data
+      notificationsError = fallback.error
+    }
 
     if (notificationsError) {
       if (isMissingNotificationsTableError(notificationsError.message)) {
@@ -108,6 +126,8 @@ export function useCustomerNotifications() {
             }
 
             const nextNotification = payload.new as CustomerNotification
+            if (nextNotification.user_id !== user.id) return
+            if (nextNotification.audience && nextNotification.audience !== "customer") return
 
             setNotifications((prev) => {
               const withoutCurrent = prev.filter(
@@ -162,6 +182,37 @@ export function useCustomerNotifications() {
     [userId]
   )
 
+  const deleteNotification = useCallback(
+    async (id: string) => {
+      if (!userId) return
+      if (!confirm("Delete this notification?")) return
+
+      const previousNotifications = notifications
+      setNotifications((prev) =>
+        prev.filter((notification) => notification.id !== id)
+      )
+      setError(null)
+
+      const { error: deleteError } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId)
+
+      if (deleteError) {
+        setNotifications(previousNotifications)
+
+        if (isMissingNotificationsTableError(deleteError.message)) {
+          setError(null)
+          return
+        }
+
+        setError(deleteError.message || "Unable to delete this notification.")
+      }
+    },
+    [notifications, userId]
+  )
+
   const markAllAsRead = useCallback(async () => {
     if (!userId || unreadCount === 0) return
 
@@ -192,6 +243,7 @@ export function useCustomerNotifications() {
     error,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
     reload: userId ? () => loadNotifications(userId) : undefined,
   }
 }

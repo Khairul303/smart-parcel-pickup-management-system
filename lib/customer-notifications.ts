@@ -4,6 +4,11 @@ const isMissingNotificationsTableError = (message?: string | null) =>
   message?.toLowerCase().includes("public.notifications") &&
   message.toLowerCase().includes("schema cache")
 
+const isMissingAudienceColumnError = (message?: string | null) =>
+  message?.toLowerCase().includes("audience") &&
+  (message.toLowerCase().includes("schema cache") ||
+    message.toLowerCase().includes("column"))
+
 const logNotificationWarning = (message: string, error: unknown) => {
   if (process.env.NODE_ENV !== "production") {
     console.warn(message, error)
@@ -29,6 +34,7 @@ export interface CustomerNotification {
   related_id: string | null
   is_read: boolean
   created_at: string
+  audience?: "customer" | string | null
 }
 
 export interface CreateCustomerNotificationInput {
@@ -60,6 +66,7 @@ export const createCustomerNotification = async ({
     .from("notifications")
     .insert({
       user_id: userId,
+      audience: "customer",
       title,
       message,
       type,
@@ -71,6 +78,29 @@ export const createCustomerNotification = async ({
 
   if (error) {
     if (isMissingNotificationsTableError(error.message)) return null
+    if (isMissingAudienceColumnError(error.message)) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: userId,
+          title,
+          message,
+          type,
+          related_id: relatedId,
+          is_read: false,
+        })
+        .select()
+        .maybeSingle()
+
+      if (fallbackError) {
+        if (isMissingNotificationsTableError(fallbackError.message)) return null
+
+        logNotificationWarning("Customer notification was skipped:", fallbackError)
+        return null
+      }
+
+      return fallbackData as CustomerNotification | null
+    }
 
     logNotificationWarning("Customer notification was skipped:", error)
     return null
