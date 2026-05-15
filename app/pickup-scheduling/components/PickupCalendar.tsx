@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react"
 import supabase from "@/lib/supabase"
 import {
@@ -12,12 +12,26 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  ACTIVE_PICKUP_STATUSES,
+  calculateUsedQuota,
   createMalaysiaDateString,
   formatMalaysiaDate,
   getDaysInMonth,
   getMalaysiaDateString,
   getMalaysiaMonthParts,
+  getTimeSlotUnavailableReason,
   getWeekdayShort,
+  isPostCentreClosedDate,
+  isWorkingHourSlot,
+  normalizeTimeSlot,
   PICKUP_TIME_SLOTS,
   SLOT_QUOTA_UNITS,
 } from "@/lib/pickup-scheduling"
@@ -36,9 +50,15 @@ interface AvailableSlot {
   remaining: number
 }
 
+interface PickupBookingQuotaRow {
+  time_slot: string | null
+  tracking_ids?: string[] | null
+}
+
 interface TimeSlot {
   time: string
   remaining: number
+  unavailableReason: string | null
 }
 
 export function PickupCalendar({
@@ -55,6 +75,20 @@ export function PickupCalendar({
   const [dateAvailability, setDateAvailability] = useState<Record<string, number>>({})
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [liveRefreshKey, setLiveRefreshKey] = useState(0)
+  const [clockKey, setClockKey] = useState(0)
+  const [notice, setNotice] = useState<{
+    title: string
+    message: string
+  } | null>(null)
+  const selectedTimeSlotRef = useRef(selectedTimeSlot)
+  const onTimeSlotSelectRef = useRef(onTimeSlotSelect)
+
+  const currentMalaysiaDate = getMalaysiaDateString()
+
+  useEffect(() => {
+    selectedTimeSlotRef.current = selectedTimeSlot
+    onTimeSlotSelectRef.current = onTimeSlotSelect
+  })
 
   const monthLabel = useMemo(
     () =>
@@ -81,29 +115,88 @@ export function PickupCalendar({
         date,
         day,
         weekday: getWeekdayShort(date),
-        isPast: date < today,
+        isPast: date < currentMalaysiaDate,
+        isClosed: isPostCentreClosedDate(date),
       }
     })
-  }, [today, visibleMonth])
+  }, [currentMalaysiaDate, visibleMonth])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setClockKey((key) => key + 1)
+    }, 60_000)
+
+    return () => window.clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     let active = true
 
+    const loadAvailabilityMap = async (date: string) => {
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("pickup_bookings")
+        .select("time_slot, tracking_ids")
+        .eq("pickup_date", date)
+        .in("status", ACTIVE_PICKUP_STATUSES)
+
+      if (!bookingsError) {
+        const rows = (bookings ?? []) as PickupBookingQuotaRow[]
+
+        return new Map(
+          PICKUP_TIME_SLOTS.map((timeSlot) => {
+            const matchingBookings = rows.filter(
+              (booking) =>
+                normalizeTimeSlot(booking.time_slot) === normalizeTimeSlot(timeSlot)
+            )
+            const usedQuota = calculateUsedQuota(matchingBookings)
+
+            return [timeSlot, Math.max(SLOT_QUOTA_UNITS - usedQuota, 0)]
+          })
+        )
+      }
+
+      const { data, error } = await supabase.rpc("get_available_slots", {
+        p_date: date,
+      })
+
+      if (error) {
+        return new Map(
+          PICKUP_TIME_SLOTS.map((timeSlot) => [timeSlot, SLOT_QUOTA_UNITS])
+        )
+      }
+
+      const slots: AvailableSlot[] = data ?? []
+      const slotMap = new Map(
+        slots.map((slot) => [
+          normalizeTimeSlot(slot.time_slot),
+          Math.max(slot.remaining, 0),
+        ])
+      )
+
+      return new Map(
+        PICKUP_TIME_SLOTS.map((timeSlot) => [
+          timeSlot,
+          slotMap.get(normalizeTimeSlot(timeSlot)) ?? SLOT_QUOTA_UNITS,
+        ])
+      )
+    }
+
     const loadMonthAvailability = async () => {
       const entries = await Promise.all(
         monthDates.map(async ({ date, isPast }) => {
-          if (isPast) return [date, 0] as const
+          if (isPast || isPostCentreClosedDate(date)) return [date, 0] as const
 
-          const { data, error } = await supabase.rpc("get_available_slots", {
-            p_date: date,
-          })
+          const slotMap = await loadAvailabilityMap(date)
+          const remaining = PICKUP_TIME_SLOTS.reduce((sum, timeSlot) => {
+            const slotRemaining = slotMap.get(timeSlot) ?? SLOT_QUOTA_UNITS
+            const unavailableReason = getTimeSlotUnavailableReason(
+              date,
+              timeSlot,
+              slotRemaining
+            )
 
-          if (error) {
-            return [date, PICKUP_TIME_SLOTS.length * SLOT_QUOTA_UNITS] as const
-          }
-
-          const slots: AvailableSlot[] = data ?? []
-          const remaining = slots.reduce((sum, slot) => sum + slot.remaining, 0)
+            return unavailableReason ? sum : sum + slotRemaining
+          }, 0)
 
           return [date, remaining] as const
         })
@@ -117,10 +210,59 @@ export function PickupCalendar({
     return () => {
       active = false
     }
-  }, [liveRefreshKey, monthDates, refreshKey])
+  }, [clockKey, liveRefreshKey, monthDates, refreshKey])
 
   useEffect(() => {
     let active = true
+
+    const loadAvailabilityMap = async (date: string) => {
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("pickup_bookings")
+        .select("time_slot, tracking_ids")
+        .eq("pickup_date", date)
+        .in("status", ACTIVE_PICKUP_STATUSES)
+
+      if (!bookingsError) {
+        const rows = (bookings ?? []) as PickupBookingQuotaRow[]
+
+        return new Map(
+          PICKUP_TIME_SLOTS.map((timeSlot) => {
+            const matchingBookings = rows.filter(
+              (booking) =>
+                normalizeTimeSlot(booking.time_slot) === normalizeTimeSlot(timeSlot)
+            )
+            const usedQuota = calculateUsedQuota(matchingBookings)
+
+            return [timeSlot, Math.max(SLOT_QUOTA_UNITS - usedQuota, 0)]
+          })
+        )
+      }
+
+      const { data, error } = await supabase.rpc("get_available_slots", {
+        p_date: date,
+      })
+
+      if (error) {
+        return new Map(
+          PICKUP_TIME_SLOTS.map((timeSlot) => [timeSlot, SLOT_QUOTA_UNITS])
+        )
+      }
+
+      const slots: AvailableSlot[] = data ?? []
+      const slotMap = new Map(
+        slots.map((slot) => [
+          normalizeTimeSlot(slot.time_slot),
+          Math.max(slot.remaining, 0),
+        ])
+      )
+
+      return new Map(
+        PICKUP_TIME_SLOTS.map((timeSlot) => [
+          timeSlot,
+          slotMap.get(normalizeTimeSlot(timeSlot)) ?? SLOT_QUOTA_UNITS,
+        ])
+      )
+    }
 
     const loadTimeSlots = async () => {
       if (!selectedDate) {
@@ -128,35 +270,32 @@ export function PickupCalendar({
         return
       }
 
-      const { data, error } = await supabase.rpc("get_available_slots", {
-        p_date: selectedDate,
-      })
+      const slotMap = await loadAvailabilityMap(selectedDate)
 
       if (!active) return
 
-      if (error) {
-        setTimeSlots(
-          PICKUP_TIME_SLOTS.map((time) => ({
+      const nextSlots = PICKUP_TIME_SLOTS.filter(isWorkingHourSlot).map((time) => {
+          const remaining = slotMap.get(time) ?? SLOT_QUOTA_UNITS
+
+          return {
             time,
-            remaining: SLOT_QUOTA_UNITS,
-          }))
-        )
-        return
+            remaining,
+            unavailableReason: getTimeSlotUnavailableReason(
+              selectedDate,
+              time,
+              remaining
+            ),
+          }
+        })
+
+      setTimeSlots(nextSlots)
+
+      const currentSelectedSlot = nextSlots.find(
+        (slot) => slot.time === selectedTimeSlotRef.current
+      )
+      if (currentSelectedSlot?.unavailableReason) {
+        onTimeSlotSelectRef.current("")
       }
-
-      const slotMap = new Map(
-        ((data ?? []) as AvailableSlot[]).map((slot) => [
-          slot.time_slot,
-          Math.max(slot.remaining, 0),
-        ])
-      )
-
-      setTimeSlots(
-        PICKUP_TIME_SLOTS.map((time) => ({
-          time,
-          remaining: slotMap.get(time) ?? SLOT_QUOTA_UNITS,
-        }))
-      )
     }
 
     loadTimeSlots()
@@ -164,7 +303,7 @@ export function PickupCalendar({
     return () => {
       active = false
     }
-  }, [liveRefreshKey, refreshKey, selectedDate])
+  }, [clockKey, liveRefreshKey, refreshKey, selectedDate])
 
   useEffect(() => {
     const channel = supabase
@@ -200,9 +339,46 @@ export function PickupCalendar({
     })
   }
 
-  const handleDateSelect = (date: string) => {
+  const handleDateSelect = (date: string, slotsAvailable = 0) => {
+    if (date < currentMalaysiaDate) {
+      setNotice({
+        title: "Date Unavailable",
+        message: "This pickup date has already passed.",
+      })
+      return
+    }
+
+    if (isPostCentreClosedDate(date)) {
+      setNotice({
+        title: "PostCentre Closed",
+        message:
+          "PostCentre Batu Pahat is closed on Saturday. Please choose another date.",
+      })
+      return
+    }
+
+    if (slotsAvailable <= 0) {
+      setNotice({
+        title: "Date Unavailable",
+        message: "There are no available pickup slots for this date.",
+      })
+      return
+    }
+
     onDateSelect(date)
     onTimeSlotSelect("")
+  }
+
+  const handleTimeSlotSelect = (slot: TimeSlot) => {
+    if (slot.unavailableReason) {
+      setNotice({
+        title: "Time Slot Unavailable",
+        message: slot.unavailableReason,
+      })
+      return
+    }
+
+    onTimeSlotSelect(slot.time)
   }
 
   const visibleMonthStart = createMalaysiaDateString(
@@ -256,14 +432,21 @@ export function PickupCalendar({
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
             {monthDates.map((date) => {
               const slotsAvailable = dateAvailability[date.date] ?? 0
-              const disabled = date.isPast || slotsAvailable === 0
+              const closedReason = date.isClosed
+                ? "Closed"
+                : date.isPast
+                  ? "Past"
+                  : slotsAvailable === 0
+                    ? "Unavailable"
+                    : null
+              const disabled = Boolean(closedReason)
 
               return (
                 <button
                   key={date.date}
                   type="button"
-                  onClick={() => handleDateSelect(date.date)}
-                  disabled={disabled}
+                  onClick={() => handleDateSelect(date.date, slotsAvailable)}
+                  aria-disabled={disabled}
                   className={`min-h-[68px] rounded-md border px-2 py-2 text-left transition ${
                     selectedDate === date.date
                       ? "border-primary bg-primary text-primary-foreground"
@@ -285,11 +468,7 @@ export function PickupCalendar({
                           : "text-green-600"
                     }`}
                   >
-                    {date.isPast
-                      ? "Past"
-                      : slotsAvailable === 0
-                        ? "No slots available"
-                        : `${slotsAvailable} slots`}
+                    {closedReason ?? `${slotsAvailable} mins`}
                   </div>
                 </button>
               )
@@ -306,15 +485,15 @@ export function PickupCalendar({
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {timeSlots.map((slot) => {
-                const isFull = slot.remaining <= 0
+                const isFull = Boolean(slot.unavailableReason)
                 const isSelected = selectedTimeSlot === slot.time
 
                 return (
                   <button
                     key={slot.time}
                     type="button"
-                    onClick={() => onTimeSlotSelect(slot.time)}
-                    disabled={isFull}
+                    onClick={() => handleTimeSlotSelect(slot)}
+                    aria-disabled={isFull}
                     className={`rounded-md border p-3 text-left transition ${
                       isSelected
                         ? "border-primary bg-primary text-primary-foreground"
@@ -335,8 +514,10 @@ export function PickupCalendar({
                       }`}
                     >
                       {isFull
-                        ? "This time slot is full"
-                        : `${slot.remaining} slots available`}
+                        ? slot.remaining <= 0
+                          ? "Full"
+                          : "Unavailable"
+                        : `${slot.remaining} minutes available`}
                     </div>
                   </button>
                 )
@@ -372,6 +553,21 @@ export function PickupCalendar({
           </Card>
         )}
       </CardContent>
+
+      <Dialog open={Boolean(notice)} onOpenChange={(open) => !open && setNotice(null)}>
+        <DialogContent className="w-[92vw] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{notice?.title ?? "Time Slot Unavailable"}</DialogTitle>
+            <DialogDescription>
+              {notice?.message ??
+                "This time slot is unavailable. Please choose another slot."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setNotice(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

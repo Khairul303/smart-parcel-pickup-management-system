@@ -14,7 +14,11 @@ import {
 } from "@/lib/pickup-status"
 import type { PickupStatus } from "@/lib/pickup-status"
 import { createNotificationForCurrentUser } from "@/lib/customer-notifications"
-import { getEstimatedMinutes, getParcelCount } from "@/lib/pickup-scheduling"
+import {
+  getEstimatedMinutes,
+  getParcelCount,
+  getTimeSlotUnavailableReason,
+} from "@/lib/pickup-scheduling"
 
 // ======================
 // TYPES
@@ -179,6 +183,17 @@ export function PickupScheduling({
     const selectedSlot = (
       availabilityData as { time_slot: string; remaining: number }[] | null
     )?.find((slot) => slot.time_slot === newPickup.timeSlot)
+    const remainingQuota = selectedSlot?.remaining ?? 0
+    const unavailableReason = getTimeSlotUnavailableReason(
+      newPickup.date,
+      newPickup.timeSlot,
+      remainingQuota
+    )
+
+    if (unavailableReason) {
+      alert(unavailableReason)
+      return false
+    }
 
     if (selectedSlot && selectedSlot.remaining < estimatedMinutes) {
       alert(

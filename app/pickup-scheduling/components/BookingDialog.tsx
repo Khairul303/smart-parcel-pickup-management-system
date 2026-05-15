@@ -25,9 +25,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { NewPickupPayload } from "./PickupScheduling"
 import { PICKUP_STATUS } from "@/lib/pickup-status"
 import {
+  ACTIVE_PICKUP_STATUSES,
+  calculateUsedQuota,
   formatMalaysiaDate,
   getEstimatedMinutes,
   getParcelCount,
+  getTimeSlotUnavailableReason,
+  normalizeTimeSlot,
+  SLOT_QUOTA_UNITS,
 } from "@/lib/pickup-scheduling"
 import { useUserTrackingIds } from "@/app/customer-dashboard/hooks/useUserTrackingIds"
 
@@ -61,6 +66,11 @@ interface SlotAvailability {
   remaining: number
 }
 
+interface PickupBookingQuotaRow {
+  time_slot: string | null
+  tracking_ids?: string[] | null
+}
+
 interface PreviewResult {
   queue_number?: number
   estimated_wait_minutes?: number
@@ -81,6 +91,10 @@ export function BookingDialog({
   const [manualTrackingId, setManualTrackingId] = useState("")
   const [livePreviewKey, setLivePreviewKey] = useState(0)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{
+    title: string
+    message: string
+  } | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const {
     trackingIds: registeredTrackingIds,
@@ -154,9 +168,10 @@ export function BookingDialog({
         p_date: selectedDate,
       })
       const matchingSlot = (slotData as SlotAvailability[] | null)?.find(
-        (slot) => slot.time_slot === selectedTimeSlot
+        (slot) =>
+          normalizeTimeSlot(slot.time_slot) === normalizeTimeSlot(selectedTimeSlot)
       )
-      const remaining = matchingSlot?.remaining ?? null
+      const remaining = matchingSlot?.remaining ?? SLOT_QUOTA_UNITS
 
       const { data: detailedPreview, error: detailedError } = await supabase.rpc(
         "preview_pickup_queue",
@@ -232,6 +247,45 @@ export function BookingDialog({
     }
   }, [isOpen, selectedDate, selectedTimeSlot])
 
+  const fetchLatestAvailableQuota = async () => {
+    const { data: bookings, error: bookingsError } = await supabase
+      .from("pickup_bookings")
+      .select("time_slot, tracking_ids")
+      .eq("pickup_date", selectedDate)
+      .in("status", ACTIVE_PICKUP_STATUSES)
+
+    if (!bookingsError) {
+      const matchingBookings = ((bookings ?? []) as PickupBookingQuotaRow[]).filter(
+        (booking) =>
+          normalizeTimeSlot(booking.time_slot) === normalizeTimeSlot(selectedTimeSlot)
+      )
+      const usedQuota = calculateUsedQuota(matchingBookings)
+
+      return Math.max(SLOT_QUOTA_UNITS - usedQuota, 0)
+    }
+
+    const { data, error } = await supabase.rpc("get_available_slots", {
+      p_date: selectedDate,
+    })
+
+    if (error) return SLOT_QUOTA_UNITS
+
+    const matchingSlot = (data as SlotAvailability[] | null)?.find(
+      (slot) =>
+        normalizeTimeSlot(slot.time_slot) === normalizeTimeSlot(selectedTimeSlot)
+    )
+
+    return matchingSlot?.remaining ?? SLOT_QUOTA_UNITS
+  }
+
+  const showUnavailableNotice = (message: string) => {
+    setSubmitError(message)
+    setNotice({
+      title: "Time Slot Unavailable",
+      message,
+    })
+  }
+
   const handleSubmit = async () => {
     if (!profile || !selectedDate || !selectedTimeSlot || !formData.parcelDetails.trim()) {
       alert("Please complete required fields")
@@ -243,8 +297,25 @@ export function BookingDialog({
       return
     }
 
-    if (availableQuota !== null && availableQuota < estimatedMinutes) {
-      setSubmitError("This slot does not have enough quota. Please choose another time slot.")
+    const latestQuota = await fetchLatestAvailableQuota()
+    const remainingQuota = latestQuota ?? availableQuota ?? SLOT_QUOTA_UNITS
+    const unavailableReason = getTimeSlotUnavailableReason(
+      selectedDate,
+      selectedTimeSlot,
+      remainingQuota
+    )
+
+    if (unavailableReason) {
+      showUnavailableNotice(unavailableReason)
+      return
+    }
+
+    if (latestQuota !== null) setAvailableQuota(latestQuota)
+
+    if (latestQuota !== null && latestQuota < estimatedMinutes) {
+      showUnavailableNotice(
+        `This slot only has ${latestQuota} quota left, but your booking requires ${estimatedMinutes}.`
+      )
       return
     }
 
@@ -271,6 +342,7 @@ export function BookingDialog({
       setSelectedTrackingId("")
       setManualTrackingId("")
       setSubmitError(null)
+      setNotice(null)
     }
 
     onOpenChange(open)
@@ -419,12 +491,26 @@ export function BookingDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!!quotaError}>
+          <Button onClick={handleSubmit} disabled={!profile}>
             Confirm Booking
           </Button>
         </DialogFooter>
       </DialogContent>
 
+      <Dialog open={Boolean(notice)} onOpenChange={(open) => !open && setNotice(null)}>
+        <DialogContent className="w-[92vw] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{notice?.title ?? "Time Slot Unavailable"}</DialogTitle>
+            <DialogDescription>
+              {notice?.message ??
+                "This time slot is unavailable. Please choose another slot."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setNotice(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

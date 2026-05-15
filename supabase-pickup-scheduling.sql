@@ -31,14 +31,14 @@ set search_path = public
 as $$
   with slots(time_slot) as (
     values
-      ('09:00 - 10:00'),
-      ('10:00 - 11:00'),
       ('11:00 - 12:00'),
       ('12:00 - 13:00'),
       ('13:00 - 14:00'),
       ('14:00 - 15:00'),
       ('15:00 - 16:00'),
-      ('16:00 - 17:00')
+      ('16:00 - 17:00'),
+      ('17:00 - 18:00'),
+      ('18:00 - 19:00')
   ),
   used as (
     select
@@ -59,7 +59,7 @@ as $$
   )
   select
     slots.time_slot,
-    greatest(5 - coalesce(used.used_quota, 0), 0)::integer as remaining
+    greatest(60 - coalesce(used.used_quota, 0), 0)::integer as remaining
   from slots
   left join used on used.time_slot = slots.time_slot
   order by slots.time_slot;
@@ -97,7 +97,7 @@ as $$
   select
     (count(*) + 1)::integer as queue_number,
     coalesce(sum(estimated_minutes), 0)::integer as estimated_wait_minutes,
-    greatest(5 - coalesce(sum(estimated_minutes), 0), 0)::integer as available_quota
+    greatest(60 - coalesce(sum(estimated_minutes), 0), 0)::integer as available_quota
   from active_bookings;
 $$;
 
@@ -133,6 +133,9 @@ as $$
 declare
   v_estimated_minutes integer;
   v_preview record;
+  v_slot_start time;
+  v_slot_end time;
+  v_malaysia_now timestamp;
 begin
   if auth.uid() is null then
     raise exception 'You must be logged in to book a pickup.';
@@ -143,6 +146,32 @@ begin
   end if;
 
   v_estimated_minutes := public.pickup_estimated_minutes(p_tracking_ids);
+  v_malaysia_now := now() at time zone 'Asia/Kuala_Lumpur';
+
+  if p_time_slot !~ '^[0-9]{2}:[0-9]{2} - [0-9]{2}:[0-9]{2}$' then
+    raise exception 'Invalid pickup time slot.';
+  end if;
+
+  v_slot_start := split_part(p_time_slot, ' - ', 1)::time;
+  v_slot_end := split_part(p_time_slot, ' - ', 2)::time;
+
+  if p_date < v_malaysia_now::date then
+    raise exception 'This pickup date has already passed.';
+  end if;
+
+  if extract(isodow from p_date) = 6 then
+    raise exception 'PostCentre Batu Pahat is closed on Saturday.';
+  end if;
+
+  if v_slot_start < time '11:00'
+     or v_slot_end > time '19:00'
+     or v_slot_end <= v_slot_start then
+    raise exception 'This time slot is outside working hours.';
+  end if;
+
+  if p_date = v_malaysia_now::date and v_malaysia_now::time >= v_slot_start then
+    raise exception 'This time slot has already started. Please choose another slot.';
+  end if;
 
   perform pg_advisory_xact_lock(hashtext(p_date::text || '|' || p_time_slot));
 
