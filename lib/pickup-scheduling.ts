@@ -1,6 +1,6 @@
 export const MALAYSIA_TIME_ZONE = "Asia/Kuala_Lumpur"
 
-export const SLOT_QUOTA_UNITS = 60
+export const SLOT_QUOTA_UNITS = 5
 
 export const PICKUP_TIME_SLOTS = [
   "09:00 - 10:00",

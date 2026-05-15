@@ -106,6 +106,7 @@ export function PickupScheduling({
     if (!userEmail) return
 
     let active = true
+    let channel: ReturnType<typeof supabase.channel> | null = null
 
     const loadPickups = async () => {
       const { data, error } = await supabase
@@ -141,8 +142,25 @@ export function PickupScheduling({
 
     loadPickups()
 
+    channel = supabase
+      .channel(`customer-pickup-history-${userEmail}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pickup_bookings",
+          filter: `customer_email=eq.${userEmail.replaceAll(",", "")}`,
+        },
+        () => {
+          loadPickups()
+        }
+      )
+      .subscribe()
+
     return () => {
       active = false
+      if (channel) supabase.removeChannel(channel)
     }
   }, [refreshKey, userEmail])
 
@@ -166,7 +184,7 @@ export function PickupScheduling({
       alert(
         `This time slot only has ${selectedSlot.remaining} quota left. Your booking needs ${estimatedMinutes}.`
       )
-      return
+      return false
     }
 
     const { error } = await supabase.rpc("book_pickup_confirmed", {
@@ -183,7 +201,7 @@ export function PickupScheduling({
     if (error) {
       console.error(error)
       alert(error.message ?? "Booking failed. Please try again.")
-      return
+      return false
     }
 
     await createNotificationForCurrentUser({
@@ -196,6 +214,7 @@ export function PickupScheduling({
     setRefreshKey((prev) => prev + 1)
     setSelectedTimeSlot("")
     onBookingDialogChange?.(false)
+    return true
   }
 
   // ======================

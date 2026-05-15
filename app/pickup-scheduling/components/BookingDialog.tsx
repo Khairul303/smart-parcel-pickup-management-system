@@ -14,6 +14,13 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { NewPickupPayload } from "./PickupScheduling"
 import { PICKUP_STATUS } from "@/lib/pickup-status"
@@ -22,6 +29,7 @@ import {
   getEstimatedMinutes,
   getParcelCount,
 } from "@/lib/pickup-scheduling"
+import { useUserTrackingIds } from "@/app/customer-dashboard/hooks/useUserTrackingIds"
 
 interface Props {
   isOpen: boolean
@@ -35,7 +43,7 @@ interface Props {
       estimatedMinutes: number
       estimatedWaitMinutes: number
     }
-  ) => void
+  ) => Promise<boolean>
 }
 
 interface Profile {
@@ -69,9 +77,16 @@ export function BookingDialog({
   const [queuePreview, setQueuePreview] = useState<number | null>(null)
   const [estimatedWaitMinutes, setEstimatedWaitMinutes] = useState(0)
   const [availableQuota, setAvailableQuota] = useState<number | null>(null)
-  const [trackingIds, setTrackingIds] = useState<string[]>([""])
+  const [selectedTrackingId, setSelectedTrackingId] = useState("")
+  const [manualTrackingId, setManualTrackingId] = useState("")
+  const [livePreviewKey, setLivePreviewKey] = useState(0)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const {
+    trackingIds: registeredTrackingIds,
+    loading: trackingIdsLoading,
+    error: trackingIdsError,
+  } = useUserTrackingIds()
   const [formData, setFormData] = useState({
     pickupAddress: "",
     parcelDetails: "",
@@ -79,8 +94,14 @@ export function BookingDialog({
   })
 
   const cleanTrackingIds = useMemo(
-    () => trackingIds.map((id) => id.trim()).filter(Boolean),
-    [trackingIds]
+    () => {
+      const selected = selectedTrackingId.trim()
+      if (selected) return [selected]
+
+      const manual = manualTrackingId.trim()
+      return manual ? [manual] : []
+    },
+    [manualTrackingId, selectedTrackingId]
   )
   const parcelCount = getParcelCount(cleanTrackingIds, formData.parcelDetails)
   const estimatedMinutes = getEstimatedMinutes(parcelCount)
@@ -180,21 +201,45 @@ export function BookingDialog({
     return () => {
       active = false
     }
-  }, [estimatedMinutes, isOpen, selectedDate, selectedTimeSlot])
+  }, [estimatedMinutes, isOpen, livePreviewKey, selectedDate, selectedTimeSlot])
 
-  const handleTrackingChange = (index: number, value: string) => {
-    const updated = [...trackingIds]
-    updated[index] = value
-    setTrackingIds(updated)
-  }
+  useEffect(() => {
+    if (!isOpen || !selectedDate) return
 
-  const addTrackingField = () => {
-    setTrackingIds([...trackingIds, ""])
-  }
+    const channel = supabase
+      .channel(`customer-booking-preview-${selectedDate}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pickup_bookings",
+          filter: `pickup_date=eq.${selectedDate}`,
+        },
+        (payload) => {
+          const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as
+            | { time_slot?: string | null }
+            | undefined
 
-  const handleSubmit = () => {
+          if (row?.time_slot && row.time_slot !== selectedTimeSlot) return
+          setLivePreviewKey((key) => key + 1)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [isOpen, selectedDate, selectedTimeSlot])
+
+  const handleSubmit = async () => {
     if (!profile || !selectedDate || !selectedTimeSlot || !formData.parcelDetails.trim()) {
       alert("Please complete required fields")
+      return
+    }
+
+    if (cleanTrackingIds.length === 0) {
+      setSubmitError("Select a registered tracking ID or enter one manually.")
       return
     }
 
@@ -203,7 +248,7 @@ export function BookingDialog({
       return
     }
 
-    onBook({
+    const booked = await onBook({
       date: selectedDate,
       timeSlot: selectedTimeSlot,
       status: PICKUP_STATUS.BOOKED,
@@ -218,11 +263,21 @@ export function BookingDialog({
       estimatedWaitMinutes,
     })
 
-    onOpenChange(false)
+    if (booked) onOpenChange(false)
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setSelectedTrackingId("")
+      setManualTrackingId("")
+      setSubmitError(null)
+    }
+
+    onOpenChange(open)
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[95vw] max-w-2xl max-h-[90svh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Confirm Pickup</DialogTitle>
@@ -283,26 +338,62 @@ export function BookingDialog({
 
           <div className="space-y-2">
             <div className="text-sm font-medium">
-              Tracking IDs for staff preparation
+              Select Registered Tracking ID
             </div>
-
-            {trackingIds.map((id, index) => (
-              <Input
-                key={index}
-                placeholder={`Tracking ID ${index + 1}`}
-                value={id}
-                onChange={(e) => handleTrackingChange(index, e.target.value)}
-              />
-            ))}
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addTrackingField}
+            <Select
+              value={selectedTrackingId || undefined}
+              onValueChange={(value) => {
+                if (value === "__empty") return
+                setSelectedTrackingId(value)
+                setSubmitError(null)
+              }}
+              disabled={trackingIdsLoading || registeredTrackingIds.length === 0}
             >
-              + Add another parcel
-            </Button>
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    trackingIdsLoading
+                      ? "Loading tracking IDs..."
+                      : registeredTrackingIds.length === 0
+                        ? "No registered tracking ID found"
+                        : "Choose tracking ID from your account"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {registeredTrackingIds.length === 0 ? (
+                  <SelectItem value="__empty" disabled>
+                    No registered tracking ID found
+                  </SelectItem>
+                ) : (
+                  registeredTrackingIds.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {id}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {trackingIdsError && (
+              <p className="text-sm text-red-500">{trackingIdsError}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Or enter tracking ID manually</div>
+            <Input
+              placeholder="Enter tracking ID"
+              value={manualTrackingId}
+              onChange={(e) => {
+                setManualTrackingId(e.target.value)
+                setSubmitError(null)
+              }}
+            />
+            {selectedTrackingId && manualTrackingId.trim() && (
+              <p className="text-xs text-muted-foreground">
+                The selected registered tracking ID will be used for this booking.
+              </p>
+            )}
           </div>
 
           {availableQuota !== null && (
@@ -333,6 +424,7 @@ export function BookingDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
     </Dialog>
   )
 }

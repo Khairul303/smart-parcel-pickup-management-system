@@ -117,6 +117,9 @@ export default function CustomerDashboardPage() {
      FETCH PARCELS
   ===================== */
   useEffect(() => {
+    let active = true
+    let profile: CustomerContact | null = null
+
     const fetchParcels = async () => {
       const {
         data: { user },
@@ -130,7 +133,7 @@ export default function CustomerDashboardPage() {
         .eq("id", user.id)
         .maybeSingle()
 
-      const profile: CustomerContact = {
+      profile = {
         id: user.id,
         email: user.email ?? null,
         phone: profileData?.no_telephone ?? null,
@@ -149,15 +152,63 @@ export default function CustomerDashboardPage() {
         .order("created_at", { ascending: false })
 
       if (data) {
+        if (!active) return
+
         setParcels(
           (data as Parcel[]).filter((parcel) =>
-            belongsToCustomerContact(parcel, profile)
+            profile ? belongsToCustomerContact(parcel, profile) : false
           )
         )
       }
     }
 
     fetchParcels()
+
+    const channel = supabase
+      .channel("customer-dashboard-parcels")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "parcels",
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldParcel = payload.old as Partial<Parcel>
+            setParcels((prev) =>
+              prev.filter((parcel) => parcel.id !== oldParcel.id)
+            )
+            return
+          }
+
+          const nextParcel = payload.new as Parcel
+
+          if (!profile || !belongsToCustomerContact(nextParcel, profile)) {
+            setParcels((prev) =>
+              prev.filter((parcel) => parcel.id !== nextParcel.id)
+            )
+            return
+          }
+
+          setParcels((prev) => {
+            const withoutCurrent = prev.filter(
+              (parcel) => parcel.id !== nextParcel.id
+            )
+            return [nextParcel, ...withoutCurrent].sort(
+              (a, b) =>
+                new Date(b.created_at ?? "").getTime() -
+                new Date(a.created_at ?? "").getTime()
+            )
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      active = false
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   /* =====================

@@ -12,8 +12,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { AlertCircle, Clock, RefreshCw, Users } from "lucide-react"
+import { AlertCircle, CalendarDays, Clock, Users } from "lucide-react"
 import { useLiveQueueStatus } from "../hooks/useLiveQueueStatus"
+import { formatMalaysiaDate } from "@/lib/pickup-scheduling"
 
 const formatWaitTime = (minutes: number) => {
   if (minutes <= 0) return "No wait"
@@ -35,7 +36,6 @@ export function QueueStatus() {
     userQueueItem,
     loading,
     error,
-    refreshQueue,
   } = useLiveQueueStatus()
   const [open, setOpen] = useState(false)
 
@@ -58,7 +58,7 @@ export function QueueStatus() {
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Current wait time</span>
+              <span className="text-gray-600">Your estimated wait</span>
               <span className="font-medium">
                 {loading ? "Loading..." : formatWaitTime(currentWaitMinutes)}
               </span>
@@ -68,7 +68,7 @@ export function QueueStatus() {
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">People in queue</span>
+              <span className="text-gray-600">People in your slot</span>
               <span className="font-medium">
                 {loading ? "Loading..." : peopleInQueue}
               </span>
@@ -95,7 +95,7 @@ export function QueueStatus() {
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="h-4 w-4" />
-                Total in queue
+                People in your slot
               </div>
               <div className="mt-2 text-2xl font-bold">
                 {loading ? "..." : peopleInQueue}
@@ -123,17 +123,6 @@ export function QueueStatus() {
           <div className="rounded-lg border p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="font-semibold">Your Queue</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={refreshQueue}
-                disabled={loading}
-              >
-                <RefreshCw
-                  className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
             </div>
 
             {loading ? (
@@ -143,12 +132,36 @@ export function QueueStatus() {
             ) : userQueueItem ? (
               <div className="grid gap-2 text-sm sm:grid-cols-3">
                 <div>
+                  <div className="text-muted-foreground">Pickup date</div>
+                  <div className="font-medium">
+                    {formatMalaysiaDate(userQueueItem.pickupDate, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </div>
+                </div>
+                <div>
                   <div className="text-muted-foreground">Queue number</div>
                   <div className="font-medium">{userQueueItem.queueNumber}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Time slot</div>
                   <div className="font-medium">{userQueueItem.timeSlot}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Queue position</div>
+                  <div className="font-medium">
+                    {userQueueItem.queuePosition
+                      ? `${userQueueItem.queuePosition} of ${userQueueItem.peopleInSlot}`
+                      : "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Estimated wait</div>
+                  <div className="font-medium">
+                    {formatWaitTime(userQueueItem.estimatedWaitMinutes)}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Status</div>
@@ -159,7 +172,7 @@ export function QueueStatus() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                You do not have an active queue booking right now.
+                No queue for your selected pickup date and time slot.
               </p>
             )}
           </div>
@@ -189,8 +202,22 @@ export function QueueStatus() {
                   >
                     <div>
                       <div className="font-medium">{item.queueNumber}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.pickupDate} at {item.timeSlot}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {formatMalaysiaDate(item.pickupDate, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          {item.timeSlot}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Position {item.queuePosition ?? "-"} of {item.peopleInSlot} in this slot
                       </div>
                     </div>
 

@@ -5,7 +5,7 @@ import supabase from "@/lib/supabase"
 
 export const AVERAGE_QUEUE_WAIT_MINUTES = 5
 
-const ACTIVE_QUEUE_STATUSES = ["booked", "checked_in"] as const
+const ACTIVE_QUEUE_STATUSES = ["booked", "upcoming", "checked_in"] as const
 
 type ActiveQueueStatus = (typeof ACTIVE_QUEUE_STATUSES)[number]
 
@@ -16,6 +16,9 @@ export type LiveQueueItem = {
   queueNumber: string
   status: ActiveQueueStatus
   preparationStatus: string | null
+  queuePosition: number | null
+  peopleInSlot: number
+  estimatedWaitMinutes: number
   createdAt: string | null
   updatedAt: string | null
 }
@@ -46,8 +49,27 @@ const isActiveQueueStatus = (status: string): status is ActiveQueueStatus =>
 const getQueueIndex = (queueNumber: string) =>
   Number.parseInt(queueNumber.replace(/\D/g, ""), 10) || Number.MAX_SAFE_INTEGER
 
-const mapQueueRow = (row: PickupBookingRow): LiveQueueItem | null => {
+type SlotQueueRow = {
+  pickup_code: string
+  queue_number: string | null
+  status: string
+}
+
+const mapQueueRow = (
+  row: PickupBookingRow,
+  slotQueue: SlotQueueRow[] = []
+): LiveQueueItem | null => {
   if (!isActiveQueueStatus(row.status)) return null
+
+  const activeSlotQueue = slotQueue
+    .filter((item) => isActiveQueueStatus(item.status))
+    .sort(
+      (a, b) =>
+        getQueueIndex(a.queue_number ?? "-") - getQueueIndex(b.queue_number ?? "-")
+    )
+  const queuePosition =
+    activeSlotQueue.findIndex((item) => item.pickup_code === row.pickup_code) + 1
+  const normalizedPosition = queuePosition > 0 ? queuePosition : null
 
   return {
     id: row.pickup_code,
@@ -56,6 +78,10 @@ const mapQueueRow = (row: PickupBookingRow): LiveQueueItem | null => {
     queueNumber: row.queue_number ?? "-",
     status: row.status,
     preparationStatus: row.preparation_status,
+    queuePosition: normalizedPosition,
+    peopleInSlot: activeSlotQueue.length,
+    estimatedWaitMinutes:
+      Math.max((normalizedPosition ?? 1) - 1, 0) * AVERAGE_QUEUE_WAIT_MINUTES,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -83,24 +109,9 @@ export function useLiveQueueStatus() {
     setLoading(true)
     setError(null)
 
-    const { count, error: countError } = await supabase
-      .from("pickup_bookings")
-      .select("pickup_code", { count: "exact", head: true })
-      .gte("pickup_date", getMalaysiaDateString())
-      .in("status", [...ACTIVE_QUEUE_STATUSES])
-
-    if (countError) {
-      setError(countError.message)
-      setQueueItems([])
-      setPeopleInQueue(0)
-      setLoading(false)
-      return
-    }
-
-    setPeopleInQueue(count ?? 0)
-
     if (!email) {
       setQueueItems([])
+      setPeopleInQueue(0)
       setLoading(false)
       return
     }
@@ -123,11 +134,42 @@ export function useLiveQueueStatus() {
       return
     }
 
-    const mapped = ((data ?? []) as PickupBookingRow[])
-      .map(mapQueueRow)
+    const customerRows = ((data ?? []) as PickupBookingRow[]).filter((row) =>
+      isActiveQueueStatus(row.status)
+    )
+
+    const slotKeys = Array.from(
+      new Set(customerRows.map((row) => `${row.pickup_date}|||${row.time_slot}`))
+    )
+    const slotQueues = new Map<string, SlotQueueRow[]>()
+
+    await Promise.all(
+      slotKeys.map(async (key) => {
+        const [pickupDate, timeSlot] = key.split("|||")
+        const { data: slotData, error: slotError } = await supabase
+          .from("pickup_bookings")
+          .select("pickup_code, queue_number, status")
+          .eq("pickup_date", pickupDate)
+          .eq("time_slot", timeSlot)
+          .in("status", [...ACTIVE_QUEUE_STATUSES])
+
+        if (slotError) {
+          setError(slotError.message)
+          slotQueues.set(key, [])
+          return
+        }
+
+        slotQueues.set(key, (slotData ?? []) as SlotQueueRow[])
+      })
+    )
+
+    const mapped = customerRows
+      .map((row) => mapQueueRow(row, slotQueues.get(`${row.pickup_date}|||${row.time_slot}`)))
       .filter((item): item is LiveQueueItem => Boolean(item))
 
-    setQueueItems(sortQueueItems(mapped))
+    const sorted = sortQueueItems(mapped)
+    setQueueItems(sorted)
+    setPeopleInQueue(sorted[0]?.peopleInSlot ?? 0)
     setLoading(false)
   }, [])
 
@@ -148,6 +190,8 @@ export function useLiveQueueStatus() {
 
       if (!email || !active) return
 
+      const safeEmail = email.replaceAll(",", "")
+
       channel = supabase
         .channel("customer-dashboard-live-queue")
         .on(
@@ -156,7 +200,7 @@ export function useLiveQueueStatus() {
             event: "*",
             schema: "public",
             table: "pickup_bookings",
-            filter: `customer_email=eq.${email}`,
+            filter: `customer_email=eq.${safeEmail}`,
           },
           () => {
             refreshQueue(email)
@@ -177,7 +221,45 @@ export function useLiveQueueStatus() {
     }
   }, [refreshQueue])
 
-  const currentWaitMinutes = peopleInQueue * AVERAGE_QUEUE_WAIT_MINUTES
+  useEffect(() => {
+    if (!userEmail || !queueItems[0]) return
+
+    const watchedDate = queueItems[0].pickupDate
+    const watchedTimeSlot = queueItems[0].timeSlot
+    const channel = supabase
+      .channel(`customer-slot-queue-${watchedDate}-${watchedTimeSlot}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pickup_bookings",
+          filter: `pickup_date=eq.${watchedDate}`,
+        },
+        (payload) => {
+          const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as
+            | Partial<PickupBookingRow>
+            | undefined
+
+          if (row?.time_slot && row.time_slot !== watchedTimeSlot) return
+          refreshQueue(userEmail)
+        }
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          setError("Unable to connect to this time slot's queue updates.")
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [queueItems, refreshQueue, userEmail])
+
+  const currentWaitMinutes =
+    queueItems[0]?.estimatedWaitMinutes ??
+    Math.max((queueItems[0]?.queuePosition ?? 1) - 1, 0) *
+      AVERAGE_QUEUE_WAIT_MINUTES
   const userQueueItem = useMemo(
     () => (userEmail ? queueItems[0] ?? null : null),
     [queueItems, userEmail]

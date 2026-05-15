@@ -59,7 +59,7 @@ as $$
   )
   select
     slots.time_slot,
-    greatest(60 - coalesce(used.used_quota, 0), 0)::integer as remaining
+    greatest(5 - coalesce(used.used_quota, 0), 0)::integer as remaining
   from slots
   left join used on used.time_slot = slots.time_slot
   order by slots.time_slot;
@@ -97,7 +97,7 @@ as $$
   select
     (count(*) + 1)::integer as queue_number,
     coalesce(sum(estimated_minutes), 0)::integer as estimated_wait_minutes,
-    greatest(60 - coalesce(sum(estimated_minutes), 0), 0)::integer as available_quota
+    greatest(5 - coalesce(sum(estimated_minutes), 0), 0)::integer as available_quota
   from active_bookings;
 $$;
 
@@ -143,6 +143,8 @@ begin
   end if;
 
   v_estimated_minutes := public.pickup_estimated_minutes(p_tracking_ids);
+
+  perform pg_advisory_xact_lock(hashtext(p_date::text || '|' || p_time_slot));
 
   select *
   into v_preview

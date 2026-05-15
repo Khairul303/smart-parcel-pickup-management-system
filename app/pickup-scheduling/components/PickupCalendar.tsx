@@ -54,6 +54,7 @@ export function PickupCalendar({
   const [visibleMonth, setVisibleMonth] = useState(initialMonth)
   const [dateAvailability, setDateAvailability] = useState<Record<string, number>>({})
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+  const [liveRefreshKey, setLiveRefreshKey] = useState(0)
 
   const monthLabel = useMemo(
     () =>
@@ -116,7 +117,7 @@ export function PickupCalendar({
     return () => {
       active = false
     }
-  }, [monthDates, refreshKey])
+  }, [liveRefreshKey, monthDates, refreshKey])
 
   useEffect(() => {
     let active = true
@@ -163,7 +164,28 @@ export function PickupCalendar({
     return () => {
       active = false
     }
-  }, [refreshKey, selectedDate])
+  }, [liveRefreshKey, refreshKey, selectedDate])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("customer-pickup-slot-availability")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pickup_bookings",
+        },
+        () => {
+          setLiveRefreshKey((key) => key + 1)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   const changeMonth = (offset: number) => {
     const next = new Date(
@@ -266,7 +288,7 @@ export function PickupCalendar({
                     {date.isPast
                       ? "Past"
                       : slotsAvailable === 0
-                        ? "Full"
+                        ? "No slots available"
                         : `${slotsAvailable} slots`}
                   </div>
                 </button>
@@ -312,7 +334,9 @@ export function PickupCalendar({
                             : "text-green-600"
                       }`}
                     >
-                      {isFull ? "Full" : `${slot.remaining} slots available`}
+                      {isFull
+                        ? "This time slot is full"
+                        : `${slot.remaining} slots available`}
                     </div>
                   </button>
                 )

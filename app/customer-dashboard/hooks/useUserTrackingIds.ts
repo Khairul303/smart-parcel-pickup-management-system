@@ -102,7 +102,81 @@ export function useUserTrackingIds() {
   }, [])
 
   useEffect(() => {
-    Promise.resolve().then(loadTrackingIds)
+    let active = true
+    let currentProfile: CustomerContact | null = null
+
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("no_telephone")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        currentProfile = {
+          id: user.id,
+          email: user.email ?? null,
+          phone: profileData?.no_telephone ?? null,
+        }
+      }
+
+      if (active) await loadTrackingIds()
+    }
+
+    load()
+
+    const channel = supabase
+      .channel("customer-tracking-ids")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "parcels",
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldParcel = payload.old as Partial<UserTrackingParcel>
+            setTrackingParcels((prev) =>
+              prev.filter((parcel) => parcel.id !== oldParcel.id)
+            )
+            return
+          }
+
+          const nextParcel = payload.new as UserTrackingParcel
+
+          if (
+            !currentProfile ||
+            !belongsToCustomerContact(nextParcel, currentProfile)
+          ) {
+            setTrackingParcels((prev) =>
+              prev.filter((parcel) => parcel.id !== nextParcel.id)
+            )
+            return
+          }
+
+          setTrackingParcels((prev) => {
+            const withoutCurrent = prev.filter(
+              (parcel) => parcel.id !== nextParcel.id
+            )
+            return sortByNewest([nextParcel, ...withoutCurrent])
+          })
+        }
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          setError("Unable to connect to tracking ID updates.")
+        }
+      })
+
+    return () => {
+      active = false
+      supabase.removeChannel(channel)
+    }
   }, [loadTrackingIds])
 
   return {
