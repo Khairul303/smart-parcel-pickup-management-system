@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import { CustomerProfileDialog } from "./customer-profile-dialog"
+import { useCurrentUserProfile } from "@/hooks/use-current-user-profile"
 
 /* -------------------------------------------------------------------------- */
 /* Menu items                                                                 */
@@ -72,6 +73,7 @@ export function CustomerSidebar(
 ) {
   const [activeItem, setActiveItem] = React.useState("Dashboard")
   const [profileOpen, setProfileOpen] = React.useState(false)
+  const { displayName } = useCurrentUserProfile("customer")
 
   return (
     <>
@@ -144,9 +146,9 @@ export function CustomerSidebar(
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
                     <User className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div className="flex-1 text-left">
+                  <div className="min-w-0 flex-1 text-left">
                     <p className="text-sm font-medium truncate">
-                      My Account
+                      {displayName}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       View profile

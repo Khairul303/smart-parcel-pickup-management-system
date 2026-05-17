@@ -1,4 +1,4 @@
-export type ParcelStatus = 'pending' | 'in-transit' | 'delivered' | 'ready';
+export type ParcelStatus = 'pending' | 'in-transit' | 'delivered' | 'ready' | 'completed' | 'collected' | 'cancelled';
 export type ParcelPriority = 'High' | 'Normal' | 'Low';
 
 export interface Parcel {
@@ -17,6 +17,9 @@ export interface Parcel {
   priority: ParcelPriority;
   dateCreated: string;
   lastUpdated: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  registered_at?: string | null;
   qrCode: string;
 }
 

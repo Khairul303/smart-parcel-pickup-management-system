@@ -1,22 +1,41 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Edit, Camera } from "lucide-react";
+import {
+  isWithinMalaysiaDateRange,
+  type TimeFilterMode,
+} from "@/lib/malaysia-date-range";
+import { Package, Edit, CheckCircle } from "lucide-react";
 import { Parcel } from "./types";
 
 interface StatsPanelProps {
   parcels: Parcel[];
+  timeFilter: TimeFilterMode;
+  selectedDate: string;
 }
 
-export function StatsPanel({ parcels }: StatsPanelProps) {
-  const newParcels = parcels.length;
-  const updated = parcels.filter(p => p.status !== "pending").length;
-  const scanned = parcels.filter(p => p.qrCode).length;
+export function StatsPanel({ parcels, timeFilter, selectedDate }: StatsPanelProps) {
+  const newParcels = parcels.filter((parcel) =>
+    isWithinMalaysiaDateRange(
+      parcel.created_at ?? parcel.dateCreated ?? parcel.registered_at,
+      timeFilter,
+      selectedDate
+    )
+  ).length;
+  const updated = parcels.filter((parcel) =>
+    isWithinMalaysiaDateRange(
+      parcel.updated_at ?? parcel.lastUpdated,
+      timeFilter,
+      selectedDate
+    )
+  ).length;
+  const ready = parcels.filter((p) => p.status === "ready").length;
+  const completed = parcels.filter((p) =>
+    ["delivered", "completed", "collected"].includes(p.status)
+  ).length;
 
   return (
-    <Card className="border-gray-200 shadow-sm">
+    <Card className="h-full border-gray-200 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-lg text-gray-900">
-          Today&apos;s Activity
-        </CardTitle>
+        <CardTitle className="text-lg text-gray-900">Today&apos;s Activity</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -38,11 +57,20 @@ export function StatsPanel({ parcels }: StatsPanelProps) {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-700">Scanned</p>
-              <p className="text-2xl font-bold text-gray-900">{scanned}</p>
+              <p className="text-sm font-medium text-gray-700">Ready to Pickup</p>
+              <p className="text-2xl font-bold text-gray-900">{ready}</p>
             </div>
-            <Camera className="h-8 w-8 text-purple-600" />
+            <Package className="h-8 w-8 text-purple-600" />
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Collected / Completed</p>
+              <p className="text-2xl font-bold text-gray-900">{completed}</p>
+            </div>
+            <CheckCircle className="h-8 w-8 text-emerald-600" />
+          </div>
+
         </div>
       </CardContent>
     </Card>

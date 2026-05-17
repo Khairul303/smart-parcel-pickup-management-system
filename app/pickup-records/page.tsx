@@ -20,6 +20,12 @@ import { ClipboardList, ChevronRight, RefreshCw, CheckCircle } from "lucide-reac
 
 import { PickupRecord } from "./types"
 import { useAdminRealtimeData, type AdminPickupBooking } from "@/lib/admin-realtime"
+import {
+  getMalaysiaDateInputValue,
+  isWithinMalaysiaDateRange,
+  type TimeFilterMode,
+} from "@/lib/malaysia-date-range"
+import { AdminTimeFilter } from "@/components/admin-time-filter"
 
 // Import local components
 import { SummaryCard } from "./components/summary-card"
@@ -31,9 +37,12 @@ import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 export default function PickupRecordsPage() {
   const {
     pickups,
-  } = useAdminRealtimeData({ parcels: false, notifications: false })
+    parcels,
+  } = useAdminRealtimeData({ notifications: false })
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [timeFilter, setTimeFilter] = useState<TimeFilterMode>("daily")
+  const [selectedDate, setSelectedDate] = useState(getMalaysiaDateInputValue())
   const [selectedRecord, setSelectedRecord] = useState<PickupRecord | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
 
@@ -58,36 +67,45 @@ export default function PickupRecordsPage() {
     return Number.isNaN(parsed) ? undefined : parsed
   }
 
-  const toPickupRecord = (pickup: AdminPickupBooking): PickupRecord => ({
-    id: pickup.pickup_code,
-    customer: {
-      name: pickup.customer_name ?? "Unknown Customer",
-      email: pickup.customer_email ?? "-",
-      phone: pickup.customer_phone ?? "-",
-      avatar: getInitials(pickup.customer_name),
-    },
-    parcelDetails: {
-      type:
-        pickup.tracking_ids && pickup.tracking_ids.length > 0
-          ? pickup.tracking_ids.join(", ")
-          : pickup.parcel_details ?? "Parcel details unavailable",
-      weight: `${Math.max(pickup.tracking_ids?.length ?? 1, 1)} parcel(s)`,
-      dimensions: pickup.parcel_details ?? "Not specified",
-      value: "Not recorded",
-    },
-    pickupAddress: pickup.pickup_address ?? "No pickup address recorded",
-    preferredTime: `${pickup.pickup_date ?? ""}T${
-      pickup.time_slot?.slice(0, 5) ?? "00:00"
-    }:00`,
-    timeSlot: pickup.time_slot ?? "Not scheduled",
-    status: mapPickupStatus(pickup.status),
-    assignedTo: pickup.preparation_status === "prepared" ? "Prepared" : "Staff",
-    createdAt: pickup.created_at ?? new Date().toISOString(),
-    updatedAt: pickup.updated_at ?? pickup.created_at ?? undefined,
-    queueNumber: getQueueNumber(pickup.queue_number),
-    queueLabel: pickup.queue_number ?? "-",
-    estimatedWait: pickup.estimated_wait_minutes ?? undefined,
-  })
+  const toPickupRecord = (pickup: AdminPickupBooking): PickupRecord => {
+    const relatedParcels = parcels.filter((parcel) =>
+      (pickup.tracking_ids ?? []).includes(parcel.tracking_id ?? "")
+    )
+
+    return {
+      id: pickup.pickup_code,
+      customer: {
+        name: pickup.customer_name ?? "Unknown Customer",
+        email: pickup.customer_email ?? "-",
+        phone: pickup.customer_phone ?? "-",
+        avatar: getInitials(pickup.customer_name),
+      },
+      parcelDetails: {
+        type:
+          pickup.tracking_ids && pickup.tracking_ids.length > 0
+            ? pickup.tracking_ids.join(", ")
+            : pickup.parcel_details ?? "Parcel details unavailable",
+        weight: `${Math.max(pickup.tracking_ids?.length ?? 1, 1)} parcel(s)`,
+        dimensions: pickup.parcel_details ?? "Not specified",
+        value: "Not recorded",
+      },
+      relatedParcels,
+      pickupAddress: pickup.pickup_address ?? "No pickup address recorded",
+      preferredTime: `${pickup.pickup_date ?? ""}T${
+        pickup.time_slot?.slice(0, 5) ?? "00:00"
+      }:00`,
+      pickupDate: pickup.pickup_date ?? undefined,
+      timeSlot: pickup.time_slot ?? "Not scheduled",
+      pickupStatus: pickup.status,
+      status: mapPickupStatus(pickup.status),
+      assignedTo: pickup.preparation_status === "prepared" ? "Prepared" : "Staff",
+      createdAt: pickup.created_at ?? new Date().toISOString(),
+      updatedAt: pickup.updated_at ?? pickup.created_at ?? undefined,
+      queueNumber: getQueueNumber(pickup.queue_number),
+      queueLabel: pickup.queue_number ?? "-",
+      estimatedWait: pickup.estimated_wait_minutes ?? undefined,
+    }
+  }
 
   const records = pickups
     .map(toPickupRecord)
@@ -97,7 +115,15 @@ export default function PickupRecordsPage() {
     )
 
   /* 🔍 FILTERED RECORDS */
-  const filteredRecords = records.filter(record => {
+  const dateFilteredRecords = records.filter((record) =>
+    isWithinMalaysiaDateRange(
+      record.pickupDate ?? record.createdAt,
+      timeFilter,
+      selectedDate
+    )
+  )
+
+  const filteredRecords = dateFilteredRecords.filter(record => {
     const matchesSearch = 
       record.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -108,18 +134,17 @@ export default function PickupRecordsPage() {
     const matchesStatus = 
       statusFilter === "all" || 
       record.status === statusFilter
-    
     return matchesSearch && matchesStatus
   })
 
   /* 📊 STATS */
   const stats = {
-    total: records.length,
-    pending: records.filter(r => r.status === "pending").length,
-    assigned: records.filter(r => r.status === "assigned").length,
-    inProgress: records.filter(r => r.status === "in-progress").length,
-    completed: records.filter(r => r.status === "completed").length,
-    cancelled: records.filter(r => r.status === "cancelled").length,
+    total: dateFilteredRecords.length,
+    pending: dateFilteredRecords.filter(r => r.status === "pending").length,
+    assigned: dateFilteredRecords.filter(r => r.status === "assigned").length,
+    inProgress: dateFilteredRecords.filter(r => r.status === "in-progress").length,
+    completed: dateFilteredRecords.filter(r => r.status === "completed").length,
+    cancelled: dateFilteredRecords.filter(r => r.status === "cancelled").length,
   }
 
   const completionRate = stats.total > 0 
@@ -168,18 +193,33 @@ export default function PickupRecordsPage() {
         {/* CONTENT */}
         <main className="min-h-screen min-w-0 space-y-6 bg-gradient-to-b from-gray-50/50 to-white p-4 md:p-6">
           {/* HEADER SECTION */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Pickup Records</h1>
               <p className="text-muted-foreground mt-1">
                 Historical pickup records organized by queue and status
               </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Last updated:{" "}
+                <span className="font-medium text-foreground">
+                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Last updated:</span>
-              <span className="text-sm font-medium">
-                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
+            <div className="w-full lg:w-auto">
+              <AdminTimeFilter
+                mode={timeFilter}
+                date={selectedDate}
+                onModeChange={setTimeFilter}
+                onDateChange={setSelectedDate}
+                options={[
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                  { value: "monthly", label: "Monthly" },
+                  { value: "yearly", label: "Yearly" },
+                  { value: "all", label: "All" },
+                ]}
+              />
             </div>
           </div>
 

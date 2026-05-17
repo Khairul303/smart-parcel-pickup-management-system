@@ -54,6 +54,8 @@ interface PickupRow {
   preparation_status: "pending" | "prepared"
 }
 
+type ParcelRow = NonNullable<Pickup["related_parcels"]>[number]
+
 /* =====================
    MALAYSIA DATE (Asia/KL)
 ===================== */
@@ -95,6 +97,23 @@ export default function PickupManagementPage() {
       .order("pickup_date", { ascending: true })
         .order("time_slot", { ascending: true })
 
+    const trackingIds = Array.from(
+      new Set((data as PickupRow[] | null)?.flatMap((p) => p.tracking_ids ?? []) ?? [])
+    )
+    const { data: parcelData } =
+      trackingIds.length > 0
+        ? await supabase
+            .from("parcels")
+            .select("*")
+            .in("tracking_id", trackingIds)
+        : { data: [] }
+    const parcelsByTrackingId = new Map(
+      ((parcelData ?? []) as ParcelRow[]).map((parcel) => [
+        parcel.tracking_id,
+        parcel,
+      ])
+    )
+
     startTransition(() => {
       if (error) {
         console.error("Failed to load pickups:", error)
@@ -111,6 +130,9 @@ export default function PickupManagementPage() {
             customer_phone: p.customer_phone ?? undefined,
             tracking_ids: p.tracking_ids ?? [],
             parcel_count: p.tracking_ids?.length ?? 0,
+            related_parcels: (p.tracking_ids ?? [])
+              .map((trackingId) => parcelsByTrackingId.get(trackingId))
+              .filter((parcel): parcel is ParcelRow => Boolean(parcel)),
             status: p.status,
             preparation_status: p.preparation_status,
           })) ?? []
@@ -146,6 +168,16 @@ export default function PickupManagementPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "pickup_bookings" },
+        () => loadPickups()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "parcels" },
+        () => loadPickups()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pickup_slots" },
         () => loadPickups()
       )
       .subscribe()

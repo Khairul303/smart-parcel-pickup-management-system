@@ -41,6 +41,23 @@ export interface Pickup {
 
   tracking_ids: string[]         // MULTIPLE parcels
   parcel_count?: number          // derived from tracking_ids.length
+  related_parcels?: {
+    id: string
+    tracking_id?: string | null
+    status?: string | null
+    sender?: string | null
+    receiver?: string | null
+    sender_phone?: string | null
+    receiver_phone?: string | null
+    receiver_email?: string | null
+    sender_address?: string | null
+    receiver_address?: string | null
+    weight?: string | null
+    dimensions?: string | null
+    priority?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+  }[]
 
   status: PickupStatus
   preparation_status: PreparationStatus

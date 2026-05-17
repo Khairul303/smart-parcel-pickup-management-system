@@ -13,7 +13,9 @@ import {
   Calendar,
   Clock,
   Package,
+  Mail,
 } from "lucide-react"
+import { toTitle } from "@/lib/admin-realtime"
 import { Pickup, statusConfig, preparationConfig } from "../types"
 
 interface RecordDetailsModalProps {
@@ -55,7 +57,11 @@ export function RecordDetailsModal({
 
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Phone className="h-4 w-4" />
-                {pickup.customer_phone || "—"}
+                {pickup.customer_phone || "-"}
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mail className="h-4 w-4" />
+                {pickup.customer_email || "-"}
               </div>
             </div>
           </div>
@@ -111,6 +117,11 @@ export function RecordDetailsModal({
                   {prep.label}
                 </Badge>
               </div>
+
+              <div>
+                <div className="text-muted-foreground">Number of Parcels</div>
+                <div>{pickup.parcel_count ?? pickup.tracking_ids.length}</div>
+              </div>
             </div>
           </div>
 
@@ -121,18 +132,43 @@ export function RecordDetailsModal({
               Parcels
             </h3>
 
-            <div className="flex flex-wrap gap-2">
-              {pickup.tracking_ids.length > 0 ? (
-                pickup.tracking_ids.map((id) => (
-                  <Badge key={id} variant="outline">
-                    {id}
-                  </Badge>
-                ))
-              ) : (
+            <div className="space-y-3">
+              {pickup.tracking_ids.length === 0 ? (
                 <span className="text-muted-foreground text-sm">
                   No tracking IDs
                 </span>
-              )}
+              ) : pickup.tracking_ids.map((id) => {
+                const parcel = pickup.related_parcels?.find(
+                  (item) => item.tracking_id === id
+                )
+
+                return (
+                  <div key={id} className="rounded-lg border p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="font-medium">{id}</div>
+                      <Badge variant="outline">{toTitle(parcel?.status ?? "not found")}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                      <div>
+                        <div className="text-muted-foreground">Sender</div>
+                        <div>{parcel?.sender ?? "Not recorded"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Receiver</div>
+                        <div>{parcel?.receiver ?? pickup.customer_name}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Receiver Contact</div>
+                        <div>{parcel?.receiver_phone ?? pickup.customer_phone ?? "Not recorded"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Weight / Dimensions</div>
+                        <div>{parcel?.weight ?? "-"} / {parcel?.dimensions ?? "-"}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
 

@@ -30,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useCurrentUserProfile } from "@/hooks/use-current-user-profile"
 
 const handleLogout = () => {
   // Optional: clear stored session data
@@ -73,6 +74,8 @@ const menuItems = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [activeItem, setActiveItem] = React.useState("Dashboard")
+  const { displayName, role } = useCurrentUserProfile("staff")
+  const accountLabel = role === "admin" ? "Admin Account" : "Staff Account"
 
   return (
     <Sidebar {...props}>
@@ -130,8 +133,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200">
             <User className="h-4 w-4 text-gray-600" />
           </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-medium">John Smith</p>
+          <div className="min-w-0 flex-1 text-left">
+            <p className="truncate text-sm font-medium">{displayName}</p>
             <p className="text-xs text-gray-500">Account</p>
           </div>
         </div>
@@ -141,7 +144,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <DropdownMenuContent align="start" className="w-48">
       <DropdownMenuItem disabled>
         <User className="mr-2 h-4 w-4" />
-        Admin Account
+        {accountLabel}
       </DropdownMenuItem>
 
 <DropdownMenuItem

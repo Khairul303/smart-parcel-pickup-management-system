@@ -23,12 +23,12 @@ export function StatusPanel({
   qrScanMode,
 }: StatusPanelProps) {
   return (
-    <Card className="border-gray-200 shadow-sm h-full">
+    <Card className="flex h-full min-w-0 flex-col border-gray-200 shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg">Quick Actions</CardTitle>
       </CardHeader>
 
-      <CardContent className="p-6 h-full flex flex-col justify-between space-y-6">
+      <CardContent className="flex flex-1 flex-col justify-between gap-6 p-6">
         {/* QR Scan */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">

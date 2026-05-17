@@ -30,6 +30,7 @@ import {
   Eye,
   Share2,
   RefreshCw,
+  CheckCircle as CheckCircleIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -105,9 +106,18 @@ const isActivePickup = (status?: string | null) =>
 const getPickupDateValue = (pickup: { pickup_date?: string | null; created_at?: string | null }) =>
   new Date(pickup.pickup_date ?? pickup.created_at ?? 0)
 
+type RecentGeneratedReport = {
+  name: string
+  type: string
+  generatedAt: string
+  rangeLabel: string
+  fileName: string
+}
+
 export default function ReportAnalyticsPage() {
   const [dateRange, setDateRange] = useState("month")
   const [generating, setGenerating] = useState(false)
+  const [recentReports, setRecentReports] = useState<RecentGeneratedReport[]>([])
   const [reportNow] = useState(() => Date.now())
   const adminData = useAdminRealtimeData({ notifications: false })
   const { parcels, pickups, loading, error } = adminData
@@ -133,6 +143,15 @@ export default function ReportAnalyticsPage() {
     )
   }, [dateRange, parcels, reportNow])
 
+  const filteredMetrics = useMemo(
+    () => getAdminDashboardMetrics(filteredParcels, filteredPickups),
+    [filteredParcels, filteredPickups]
+  )
+
+  const pendingParcels = filteredParcels.filter(
+    (parcel) => parcel.status === "pending"
+  ).length
+
   const pickupTrendData = useMemo(() => {
     const bucket = new Map<string, { month: string; bookings: number; collected: number }>()
 
@@ -155,6 +174,38 @@ export default function ReportAnalyticsPage() {
     return Array.from(bucket.values()).slice(-12)
   }, [dateRange, filteredPickups, reportNow])
 
+  const parcelStatusBreakdown = useMemo(() => {
+    const counts = new Map<string, number>()
+
+    filteredParcels.forEach((parcel) => {
+      const status = toTitle(parcel.status ?? "unknown")
+      counts.set(status, (counts.get(status) ?? 0) + 1)
+    })
+
+    return Array.from(counts.entries()).map(([name, value], index) => ({
+      name,
+      value,
+      color: chartColors[index % chartColors.length],
+    }))
+  }, [filteredParcels])
+
+  const parcelVolumeData = useMemo(() => {
+    const bucket = new Map<string, { label: string; parcels: number }>()
+
+    filteredParcels.forEach((parcel) => {
+      const date = new Date(parcel.created_at ?? reportNow)
+      const key =
+        dateRange === "year"
+          ? date.toLocaleString([], { month: "short" })
+          : date.toLocaleDateString([], { month: "short", day: "numeric" })
+      const current = bucket.get(key) ?? { label: key, parcels: 0 }
+      current.parcels += 1
+      bucket.set(key, current)
+    })
+
+    return Array.from(bucket.values()).slice(-12)
+  }, [dateRange, filteredParcels, reportNow])
+
   const pickupTypeDistribution = useMemo(() => {
     const counts = new Map<string, number>()
 
@@ -172,6 +223,41 @@ export default function ReportAnalyticsPage() {
       color: chartColors[index % chartColors.length],
     }))
   }, [filteredPickups, metrics.activePickups, metrics.cancelledPickups])
+
+  const queueStatusDistribution = useMemo(() => {
+    const rows = [
+      {
+        name: "Upcoming",
+        value: filteredPickups.filter((pickup) =>
+          isUpcomingPickup(pickup.status)
+        ).length,
+        color: "#3b82f6",
+      },
+      {
+        name: "Collected",
+        value: filteredPickups.filter((pickup) =>
+          isCollectedPickup(pickup.status)
+        ).length,
+        color: "#10b981",
+      },
+      {
+        name: "Cancelled",
+        value: filteredPickups.filter((pickup) =>
+          isCancelledPickup(pickup.status)
+        ).length,
+        color: "#ef4444",
+      },
+      {
+        name: "Pending",
+        value: filteredPickups.filter(
+          (pickup) => !pickup.status || pickup.status === "pending"
+        ).length,
+        color: "#f59e0b",
+      },
+    ]
+
+    return rows.filter((row) => row.value > 0)
+  }, [filteredPickups])
 
   const monthlyPerformance = useMemo(() => {
     const reportDate = new Date(reportNow)
@@ -335,27 +421,6 @@ export default function ReportAnalyticsPage() {
     }
   }, [filteredPickups])
 
-  const recentReports = [
-    {
-      name: "Monthly Pickup Performance Report",
-      description: `${monthlyPerformance.label} pickup operations`,
-      stats: [
-        `${monthlyPerformance.total} bookings`,
-        `${monthlyPerformance.completed} collected`,
-        `${monthlyPerformance.completionRate}% completion`,
-      ],
-    },
-    {
-      name: "Queue Waiting Time Analysis",
-      description: "Live queue waiting time and slot volume",
-      stats: [
-        `${queueWaitingAnalysis.average} min avg wait`,
-        `${queueWaitingAnalysis.highest} min highest`,
-        `${queueWaitingAnalysis.activeRecords} active records`,
-      ],
-    },
-  ]
-
   const performanceMetrics = [
     { name: "Pickup Success Rate", current: metrics.successRate, target: 95 },
     { name: "On-Time Pickup Rate", current: metrics.onTimeRate, target: 90 },
@@ -421,7 +486,6 @@ export default function ReportAnalyticsPage() {
           ["Most used time slot", slotUtilization.mostUsed],
           ["Least used time slot", slotUtilization.leastUsed],
           ["Pickup success rate", `${metrics.successRate}%`],
-          ["No-show rate", `${metrics.noShowRate}%`],
         ],
         theme: "grid",
         headStyles: { fillColor: [37, 99, 235] },
@@ -483,7 +547,18 @@ export default function ReportAnalyticsPage() {
         styles: { fontSize: 8 },
       })
 
-      doc.save(`pickup-analytics-${dateRange}-${new Date().toISOString().slice(0, 10)}.pdf`)
+      const fileName = `pickup-analytics-${dateRange}-${new Date().toISOString().slice(0, 10)}.pdf`
+      doc.save(fileName)
+      setRecentReports((current) => [
+        {
+          name: "Pickup Analytics Report",
+          type: "PDF",
+          generatedAt: new Date().toISOString(),
+          rangeLabel,
+          fileName,
+        },
+        ...current,
+      ].slice(0, 5))
     } catch (reportError) {
       alert(reportError instanceof Error ? reportError.message : "Unable to generate PDF report.")
     } finally {
@@ -547,18 +622,15 @@ export default function ReportAnalyticsPage() {
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryCard title="Total Pickup Requests" value={loading ? "..." : String(metrics.totalPickups)} icon={<Package />} />
-            <SummaryCard title="Peak Pickup Hour" value={peakHour} icon={<Clock />} />
-            <SummaryCard title="Average Wait Time" value={`${queueWaitingAnalysis.average} min`} icon={<Users />} />
-            <SummaryCard title="No-Show Rate" value={`${metrics.noShowRate}%`} icon={<TrendingDown />} />
-          </div>
-
           <Tabs defaultValue="overview">
-            <TabsList className="grid h-auto w-full grid-cols-3">
+            <TabsList className="grid h-auto w-full grid-cols-4">
               <TabsTrigger value="overview">
                 <Activity className="mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="parcel">
+                <Package className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Parcel</span>
               </TabsTrigger>
               <TabsTrigger value="queue">
                 <Users className="mr-2 h-4 w-4" />
@@ -571,10 +643,19 @@ export default function ReportAnalyticsPage() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <SummaryCard title="Total Parcels" value={loading ? "..." : String(filteredMetrics.totalParcels)} icon={<Package />} />
+                <SummaryCard title="Total Pickup Bookings" value={loading ? "..." : String(filteredMetrics.totalPickups)} icon={<Calendar />} />
+                <SummaryCard title="Total Queue Records" value={String(filteredPickups.length)} icon={<Users />} />
+                <SummaryCard title="Completed / Collected" value={String(filteredMetrics.completedPickups)} icon={<CheckCircleIcon />} />
+                <SummaryCard title="Cancelled" value={String(filteredMetrics.cancelledPickups)} icon={<TrendingDown />} />
+                <SummaryCard title="Completion Rate" value={`${filteredMetrics.successRate}%`} icon={<Target />} />
+              </div>
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Pickup Volume Trend</CardTitle>
-                  <CardDescription>Booking vs actual parcel collection</CardDescription>
+                  <CardTitle>Pickup Booking vs Collected Pickup Trend</CardTitle>
+                  <CardDescription>Bookings compared with collected pickups over time</CardDescription>
                 </CardHeader>
                 <CardContent className="h-72 min-w-0 sm:h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -585,7 +666,7 @@ export default function ReportAnalyticsPage() {
                       <Tooltip />
                       <Legend />
                       <Area type="monotone" dataKey="bookings" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Pickup Bookings" />
-                      <Area type="monotone" dataKey="collected" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Parcels Collected" />
+                      <Area type="monotone" dataKey="collected" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Collected Pickups" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -633,14 +714,150 @@ export default function ReportAnalyticsPage() {
               </div>
             </TabsContent>
 
+            <TabsContent value="parcel" className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <SummaryCard title="Total Parcels" value={String(filteredParcels.length)} icon={<Package />} />
+                <SummaryCard title="Ready Parcels" value={String(filteredParcels.filter((p) => ["ready", "ready-for-pickup"].includes(p.status ?? "")).length)} icon={<Package />} />
+                <SummaryCard title="Collected / Completed" value={String(filteredParcels.filter((p) => ["delivered", "completed", "collected"].includes(p.status ?? "")).length)} icon={<CheckCircleIcon />} />
+                <SummaryCard title="Pending Parcels" value={String(pendingParcels)} icon={<Clock />} />
+                <SummaryCard title="Cancelled Parcels" value={String(filteredParcels.filter((p) => ["cancelled", "canceled"].includes(p.status ?? "")).length)} icon={<TrendingDown />} />
+                <SummaryCard title="Registered This Period" value={String(filteredParcels.length)} icon={<Calendar />} />
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Parcel Status Breakdown</CardTitle>
+                    <CardDescription>Parcel counts grouped by current status</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-64 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={
+                            parcelStatusBreakdown.length > 0
+                              ? parcelStatusBreakdown
+                              : [{ name: "No data", value: 1, color: "#e5e7eb" }]
+                          }
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                        >
+                          <LabelList dataKey="name" position="outside" />
+                          {(parcelStatusBreakdown.length > 0
+                            ? parcelStatusBreakdown
+                            : [{ name: "No data", value: 1, color: "#e5e7eb" }]
+                          ).map((entry, index) => (
+                            <Cell key={index} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Parcel Volume Trend</CardTitle>
+                    <CardDescription>Recent parcel registrations in the selected range</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-64 min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={
+                          parcelVolumeData.length > 0
+                            ? parcelVolumeData
+                            : [{ label: "No data", parcels: 0 }]
+                        }
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="parcels" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Parcels" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Parcel Registrations</CardTitle>
+                  <CardDescription>Latest parcel records from Supabase</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Tracking ID</TableHead>
+                          <TableHead>Receiver</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredParcels.slice(0, 8).map((parcel) => (
+                          <TableRow key={parcel.id}>
+                            <TableCell className="font-medium">{parcel.tracking_id ?? "-"}</TableCell>
+                            <TableCell>{parcel.receiver ?? "-"}</TableCell>
+                            <TableCell>{toTitle(parcel.status ?? "-")}</TableCell>
+                            <TableCell>{parcel.created_at ? new Date(parcel.created_at).toLocaleString() : "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                        {filteredParcels.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                              No parcel analytics data available.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="queue">
               <div className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <SummaryCard title="Total Queue Records" value={String(filteredPickups.length)} icon={<Users />} />
+                  <SummaryCard title="Active / Upcoming" value={String(filteredMetrics.activePickups)} icon={<Calendar />} />
+                  <SummaryCard title="Completed / Collected" value={String(filteredMetrics.completedPickups)} icon={<CheckCircleIcon />} />
+                  <SummaryCard title="Cancelled Queue" value={String(filteredMetrics.cancelledPickups)} icon={<TrendingDown />} />
                   <SummaryCard title="Average Waiting Time" value={`${queueWaitingAnalysis.average} min`} icon={<Clock />} />
-                  <SummaryCard title="Highest Waiting Time" value={`${queueWaitingAnalysis.highest} min`} icon={<TrendingDown />} />
-                  <SummaryCard title="Lowest Waiting Time" value={`${queueWaitingAnalysis.lowest} min`} icon={<Target />} />
-                  <SummaryCard title="Active Queue Records" value={String(queueWaitingAnalysis.activeRecords)} icon={<Users />} />
+                  <SummaryCard title="Peak Time Slot" value={queueWaitingAnalysis.peakSlot} icon={<Target />} />
                 </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Queue Status Distribution</CardTitle>
+                    <CardDescription>Upcoming, collected, cancelled, and pending queue records</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-72 min-w-0">
+                    {queueStatusDistribution.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border text-sm text-muted-foreground">
+                        No queue status data available.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsPieChart>
+                          <Pie data={queueStatusDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={86} dataKey="value">
+                            <LabelList dataKey="name" position="outside" />
+                            {queueStatusDistribution.map((entry, index) => (
+                              <Cell key={index} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </RechartsPieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
 
                 <Card>
                   <CardHeader>
@@ -659,7 +876,7 @@ export default function ReportAnalyticsPage() {
                         {["booked", "upcoming", "checked_in", "collected", "cancelled", "no_show"].map((status) => (
                           <TableRow key={status}>
                             <TableCell>{getPickupDisplayStatus(status)}</TableCell>
-                            <TableCell>{pickups.filter((pickup) => pickup.status === status).length}</TableCell>
+                            <TableCell>{filteredPickups.filter((pickup) => pickup.status === status).length}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -669,7 +886,16 @@ export default function ReportAnalyticsPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="performance">
+            <TabsContent value="performance" className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <SummaryCard title="Completion Rate" value={`${filteredMetrics.successRate}%`} icon={<CheckCircleIcon />} />
+                <SummaryCard title="Cancellation Rate" value={filteredPickups.length > 0 ? `${Math.round((filteredMetrics.cancelledPickups / filteredPickups.length) * 100)}%` : "0%"} icon={<TrendingDown />} />
+                <SummaryCard title="Average Waiting Time" value={`${queueWaitingAnalysis.average} min`} icon={<Clock />} />
+                <SummaryCard title="Average Processing Time" value={`${filteredMetrics.processingHours.toFixed(1)} hr`} icon={<Activity />} />
+                <SummaryCard title="Slot Utilization Rate" value={slotUtilization.rows.length > 0 ? `${Math.round(slotUtilization.rows.reduce((total, row) => total + row.utilization, 0) / slotUtilization.rows.length)}%` : "0%"} icon={<Target />} />
+                <SummaryCard title="Peak Pickup Hour" value={peakHour} icon={<Clock />} />
+              </div>
+
               <Card>
                 <CardHeader>
                   <CardTitle>Pickup Performance Summary</CardTitle>
@@ -685,50 +911,41 @@ export default function ReportAnalyticsPage() {
                     <TableBody>
                       <TableRow>
                         <TableCell>On-Time Pickup</TableCell>
-                        <TableCell>{metrics.onTimeRate}%</TableCell>
+                        <TableCell>{filteredMetrics.onTimeRate}%</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Late Pickup</TableCell>
-                        <TableCell>{Math.max(0, 100 - metrics.onTimeRate)}%</TableCell>
+                        <TableCell>{Math.max(0, 100 - filteredMetrics.onTimeRate)}%</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>No-Show</TableCell>
-                        <TableCell>{metrics.noShowRate}%</TableCell>
+                        <TableCell>{filteredMetrics.noShowRate}%</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Total Parcels</TableCell>
-                        <TableCell>{metrics.totalParcels}</TableCell>
+                        <TableCell>{filteredMetrics.totalParcels}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Ready Parcels</TableCell>
-                        <TableCell>{metrics.readyParcels}</TableCell>
+                        <TableCell>{filteredMetrics.readyParcels}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Collected Parcels</TableCell>
-                        <TableCell>{metrics.completedParcels}</TableCell>
+                        <TableCell>{filteredMetrics.completedParcels}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Peak Time Slot & Slot Utilization Analysis</CardTitle>
-              <CardDescription>
-                Pickup slot usage based on active bookings and 60 quota units per slot
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <SummaryCard title="Most Used Slot" value={slotUtilization.mostUsed} icon={<Clock />} />
-                <SummaryCard title="Least Used Slot" value={slotUtilization.leastUsed} icon={<Calendar />} />
-                <SummaryCard title="Active Queue Records" value={String(queueWaitingAnalysis.activeRecords)} icon={<Users />} />
-                <SummaryCard title="Peak Queue Slot" value={queueWaitingAnalysis.peakSlot} icon={<Target />} />
-              </div>
-
+              <Card>
+                <CardHeader>
+                  <CardTitle>Peak Time Slot & Slot Utilization Analysis</CardTitle>
+                  <CardDescription>
+                    Pickup slot usage based on active bookings and 60 quota units per slot
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
                   <TableHeader>
@@ -768,8 +985,10 @@ export default function ReportAnalyticsPage() {
                   </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
 
           <Card>
             <CardHeader>
@@ -781,27 +1000,30 @@ export default function ReportAnalyticsPage() {
                 <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
                   No recent reports available.
                 </div>
-              ) : recentReports.map((report, index) => (
-                <div key={index} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+              ) : recentReports.map((report) => (
+                <div key={`${report.generatedAt}-${report.fileName}`} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     <FileText className="h-5 w-5" />
                     <div className="min-w-0">
                       <span className="block min-w-0 truncate font-medium">{report.name}</span>
-                      <p className="text-sm text-muted-foreground">{report.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {report.type} generated {new Date(report.generatedAt).toLocaleString()}
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {report.stats.map((stat) => (
-                          <span key={stat} className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-                            {stat}
-                          </span>
-                        ))}
+                        <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                          {report.rangeLabel}
+                        </span>
+                        <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                          {report.fileName}
+                        </span>
                       </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" title="Generated PDF was downloaded when created">
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" title="Share is unavailable for session-only reports" disabled>
                       <Share2 className="h-4 w-4" />
                     </Button>
                   </div>

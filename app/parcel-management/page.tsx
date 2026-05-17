@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import supabase from "@/lib/supabase";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
@@ -22,11 +22,18 @@ import { ParcelTable } from "./components/ParcelTable";
 import { ParcelFormDialog } from "./components/ParcelFormDialog";
 import { StatusPanel } from "./components/StatusPanel";
 import { StatsPanel } from "./components/StatsPanel";
+import { RecentActivityPanel } from "./components/RecentActivityPanel";
 import { statusConfig, priorityConfig } from "./data/parcels";
 import { Parcel, ParcelFormData } from "./components/types";
 import QrScanner from "./components/QrScanner";
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications";
 import { AdminNotificationButton } from "@/app/admin-dashboard/components";
+import { AdminTimeFilter } from "@/components/admin-time-filter";
+import {
+  getMalaysiaDateInputValue,
+  isWithinMalaysiaDateRange,
+  type TimeFilterMode,
+} from "@/lib/malaysia-date-range";
 
 
 export default function ParcelManagementPage() {
@@ -41,6 +48,8 @@ export default function ParcelManagementPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<TimeFilterMode>("daily");
+  const [selectedDate, setSelectedDate] = useState(getMalaysiaDateInputValue());
 
   const [parcelForm, setParcelForm] = useState<ParcelFormData>({
     sender: "",
@@ -118,7 +127,35 @@ export default function ParcelManagementPage() {
 
 
   /* 🔍 FILTER */
-  const filteredParcels = parcels.filter((p) => {
+  const timeFilteredParcels = useMemo(
+    () =>
+      parcels.filter((parcel) =>
+        [
+          parcel.created_at,
+          parcel.dateCreated,
+          parcel.registered_at,
+          parcel.updated_at,
+          parcel.lastUpdated,
+        ].some((dateValue) =>
+          isWithinMalaysiaDateRange(dateValue, timeFilter, selectedDate)
+        )
+      ),
+    [parcels, selectedDate, timeFilter]
+  );
+
+  const tableDateFilteredParcels = useMemo(
+    () =>
+      parcels.filter((parcel) =>
+        isWithinMalaysiaDateRange(
+          parcel.created_at ?? parcel.dateCreated ?? parcel.registered_at,
+          timeFilter,
+          selectedDate
+        )
+      ),
+    [parcels, selectedDate, timeFilter]
+  );
+
+  const filteredParcels = tableDateFilteredParcels.filter((p) => {
     const q = search.toLowerCase();
     return (
       (p.tracking_id ?? "").toLowerCase().includes(q) ||
@@ -389,18 +426,43 @@ const handleScanSuccess = async (trackingId: string) => {
 
         {/* CONTENT */}
         <main className="min-w-0 space-y-6 bg-gray-50 p-4 md:p-6">
-          <h1 className="text-2xl font-bold sm:text-3xl">Parcel Management</h1>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <h1 className="text-2xl font-bold sm:text-3xl">Parcel Management</h1>
+            <div className="w-full lg:w-auto">
+              <AdminTimeFilter
+                mode={timeFilter}
+                date={selectedDate}
+                onModeChange={setTimeFilter}
+                onDateChange={setSelectedDate}
+                options={[
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" },
+                  { value: "monthly", label: "Monthly" },
+                  { value: "yearly", label: "Yearly" },
+                  { value: "all", label: "All" },
+                ]}
+              />
+            </div>
+          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <StatsPanel parcels={parcels} />
-           <StatusPanel
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
+            <StatsPanel
+              parcels={timeFilteredParcels}
+              timeFilter={timeFilter}
+              selectedDate={selectedDate}
+            />
+            <div className="min-w-0">
+              <StatusPanel
                 onScanQR={handleScanQR}
                 onManualEntry={handleManualEntry}
                 qrScanMode={qrScanMode}
                 scanResult={scanResult}
                 onClearScan={() => setScanResult("")}
               />
+            </div>
           </div>
+
+          <RecentActivityPanel parcels={timeFilteredParcels} />
 
           {/* <QuickActionsx`
             onScanQR={handleScanQR}

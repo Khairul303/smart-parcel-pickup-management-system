@@ -22,9 +22,28 @@ export interface PickupRecord {
     dimensions: string
     value: string
   }
+  relatedParcels?: {
+    id: string
+    tracking_id?: string | null
+    status?: string | null
+    sender?: string | null
+    receiver?: string | null
+    sender_phone?: string | null
+    receiver_phone?: string | null
+    receiver_email?: string | null
+    sender_address?: string | null
+    receiver_address?: string | null
+    weight?: string | null
+    dimensions?: string | null
+    priority?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+  }[]
   pickupAddress: string
   preferredTime: string
+  pickupDate?: string
   timeSlot?: string
+  pickupStatus?: string | null
   status: PickupStatus
   assignedTo: string
   createdAt: string

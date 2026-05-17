@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { MapPin, Calendar, Phone, Package, Scale, Ruler, DollarSign, Clock, User } from "lucide-react"
 import { PickupRecord, statusConfig } from "../types"
+import { toTitle } from "@/lib/admin-realtime"
 import {
   Dialog,
   DialogContent,
@@ -86,6 +87,11 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
                   {status.icon}
                   {status.label}
                 </Badge>
+                {record.pickupStatus && (
+                  <div className="text-xs text-muted-foreground">
+                    Pickup status: {toTitle(record.pickupStatus)}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium">Scheduled Time</div>
@@ -96,6 +102,12 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
               <div className="space-y-2">
                 <div className="text-sm font-medium">Time Slot</div>
                 <div className="text-sm">{record.timeSlot ?? "Not scheduled"}</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Updated</div>
+                <div className="text-sm">
+                  {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : "Not recorded"}
+                </div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium">Assigned To</div>
@@ -121,6 +133,44 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
               <Package className="h-4 w-4" />
               Parcel Details
             </h3>
+            {record.relatedParcels && record.relatedParcels.length > 0 ? (
+              <div className="space-y-3">
+                {record.relatedParcels.map((parcel) => (
+                  <div key={parcel.id} className="rounded-lg border p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="break-all font-medium">{parcel.tracking_id}</div>
+                      <Badge variant="outline">{toTitle(parcel.status ?? "unknown")}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                      <div>
+                        <div className="text-muted-foreground">Sender</div>
+                        <div>{parcel.sender ?? "Not recorded"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Receiver</div>
+                        <div>{parcel.receiver ?? record.customer.name}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Receiver Contact</div>
+                        <div>{parcel.receiver_phone ?? record.customer.phone}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Weight / Dimensions</div>
+                        <div>{parcel.weight ?? "-"} / {parcel.dimensions ?? "-"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Created</div>
+                        <div>{parcel.created_at ? new Date(parcel.created_at).toLocaleString() : "Not recorded"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Updated</div>
+                        <div>{parcel.updated_at ? new Date(parcel.updated_at).toLocaleString() : "Not recorded"}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -151,6 +201,7 @@ export function RecordDetailsModal({ record, isOpen, onClose }: RecordDetailsMod
                 <div className="text-sm">{record.parcelDetails.value}</div>
               </div>
             </div>
+            )}
           </div>
 
           {/* Actions */}
