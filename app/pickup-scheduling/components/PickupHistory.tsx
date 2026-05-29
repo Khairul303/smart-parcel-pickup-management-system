@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Edit, Trash2, Search } from "lucide-react"
+import { Edit, Eye, Trash2, Search } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -12,6 +12,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -51,6 +59,7 @@ export function PickupHistory({
 }: PickupHistoryProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [selectedPickup, setSelectedPickup] = useState<PickupSchedule | null>(null)
 
   const getStatusBadge = (status: PickupSchedule["status"]) => {
     const displayStatus = normalizePickupStatus(status)
@@ -176,6 +185,15 @@ export function PickupHistory({
                   size="sm"
                   variant="ghost"
                   className="h-8 w-8 p-0"
+                  onClick={() => setSelectedPickup(pickup)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
                   onClick={() => onEdit(pickup)}
                   disabled={
                     normalizePickupStatus(pickup.status) === "collected" ||
@@ -263,6 +281,15 @@ export function PickupHistory({
                         size="sm"
                         variant="ghost"
                         className="h-8 w-8 p-0"
+                        onClick={() => setSelectedPickup(pickup)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
                         onClick={() => onEdit(pickup)}
                         disabled={
                           normalizePickupStatus(pickup.status) === "collected" ||
@@ -292,6 +319,136 @@ export function PickupHistory({
           </Table>
         </div>
       </CardContent>
+
+      <Dialog
+        open={Boolean(selectedPickup)}
+        onOpenChange={(open) => !open && setSelectedPickup(null)}
+      >
+        <DialogContent className="max-h-[90svh] w-[95vw] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pickup Details</DialogTitle>
+            <DialogDescription>
+              Complete details for your pickup booking.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedPickup && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 rounded-md border p-4 text-sm sm:grid-cols-2">
+                <div>
+                  <div className="text-muted-foreground">Booking Reference</div>
+                  <div className="font-medium">{selectedPickup.id}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Queue Number</div>
+                  <div className="font-medium">{selectedPickup.queueNumber ?? "-"}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Pickup Date</div>
+                  <div className="font-medium">{formatMalaysiaDate(selectedPickup.date)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Time Slot</div>
+                  <div className="font-medium">{selectedPickup.timeSlot}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Status</div>
+                  <div className="mt-1">{getStatusBadge(selectedPickup.status)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Estimated Waiting Time</div>
+                  <div className="font-medium">{getEstimatedWait(selectedPickup)}</div>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-4 text-sm">
+                <h3 className="mb-3 font-semibold">Tracking ID(s)</h3>
+                {selectedPickup.trackingIds && selectedPickup.trackingIds.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedPickup.trackingIds.map((id) => {
+                      const parcel = selectedPickup.relatedParcels?.find(
+                        (item) => item.tracking_id === id
+                      )
+
+                      return (
+                        <div key={id} className="rounded-md border bg-gray-50 p-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <Badge variant="outline" className="w-fit break-all bg-white">
+                              {id}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {parcel?.status ? `Parcel status: ${parcel.status}` : "Parcel status unavailable"}
+                            </span>
+                          </div>
+                          {(parcel?.sender || parcel?.receiver) && (
+                            <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                              <div>
+                                <span className="text-muted-foreground">Sender: </span>
+                                <span>{parcel.sender ?? "-"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Receiver: </span>
+                                <span>{parcel.receiver ?? selectedPickup.customerName}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No tracking ID recorded.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 rounded-md border p-4 text-sm sm:grid-cols-2">
+                <div>
+                  <div className="text-muted-foreground">Customer Name</div>
+                  <div className="font-medium">{selectedPickup.customerName}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Phone</div>
+                  <div className="font-medium">{selectedPickup.customerPhone}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Email</div>
+                  <div className="break-all font-medium">{selectedPickup.customerEmail}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Pickup Address</div>
+                  <div className="font-medium">{selectedPickup.pickupAddress || "-"}</div>
+                </div>
+                <div className="sm:col-span-2">
+                  <div className="text-muted-foreground">Parcel Details</div>
+                  <div className="whitespace-pre-wrap font-medium">
+                    {selectedPickup.parcelDetails || "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Created</div>
+                  <div className="font-medium">
+                    {selectedPickup.createdAt
+                      ? new Date(selectedPickup.createdAt).toLocaleString()
+                      : "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Updated</div>
+                  <div className="font-medium">
+                    {selectedPickup.updatedAt
+                      ? new Date(selectedPickup.updatedAt).toLocaleString()
+                      : "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setSelectedPickup(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

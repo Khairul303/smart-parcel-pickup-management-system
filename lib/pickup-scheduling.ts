@@ -177,6 +177,25 @@ export const isTimeSlotStarted = (
   return currentMinutes >= slotStartMinutes
 }
 
+export const isTimeSlotEnded = (
+  pickupDate: string,
+  timeSlot: string,
+  now = new Date()
+) => {
+  const today = getMalaysiaDateString(now)
+  if (pickupDate < today) return true
+  if (pickupDate > today) return false
+
+  const slot = parseTimeSlot(timeSlot)
+  if (!slot) return true
+
+  const current = getMalaysiaTimeParts(now)
+  const currentMinutes = current.hour * 60 + current.minute
+  const slotEndMinutes = slot.endHour * 60 + slot.endMinute
+
+  return currentMinutes >= slotEndMinutes
+}
+
 export const getTimeSlotUnavailableReason = (
   pickupDate: string,
   timeSlot: string,
@@ -193,7 +212,7 @@ export const getTimeSlotUnavailableReason = (
   if (!isWorkingHourSlot(timeSlot)) {
     return "This time slot is outside working hours."
   }
-  if (isTimeSlotStarted(pickupDate, timeSlot, now)) {
+  if (isTimeSlotEnded(pickupDate, timeSlot, now)) {
     return "This time slot has already passed. Please choose another slot."
   }
   if (remainingQuota <= 0) {

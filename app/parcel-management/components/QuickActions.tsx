@@ -29,15 +29,15 @@ export function QuickActions({
 }: QuickActionsProps) {
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:max-w-4xl">
         {/* QR Scan Card */}
         <Card className="border-gray-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-50 rounded-lg">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="w-fit p-3 bg-blue-50 rounded-lg">
                 <Scan className="h-6 w-6 text-blue-600" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-gray-900">QR Code Scan</h3>
                 <p className="text-sm text-gray-600">
                   Scan parcel QR for quick entry
@@ -45,7 +45,7 @@ export function QuickActions({
               </div>
               <Button
                 size="sm"
-                className="ml-auto bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto"
                 onClick={onScanQR}
                 disabled={qrScanMode}
               >
@@ -67,12 +67,12 @@ export function QuickActions({
 
         {/* Manual Entry Card */}
         <Card className="border-gray-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-50 rounded-lg">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="w-fit p-3 bg-green-50 rounded-lg">
                 <Edit className="h-6 w-6 text-green-600" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-gray-900">Manual Entry</h3>
                 <p className="text-sm text-gray-600">
                   Enter parcel details manually
@@ -81,7 +81,7 @@ export function QuickActions({
               <Button
                 size="sm"
                 variant="outline"
-                className="ml-auto border-gray-300"
+                className="w-full border-gray-300 sm:w-auto"
                 onClick={onManualEntry}
               >
                 <UserPlus className="h-3 w-3 mr-1" />

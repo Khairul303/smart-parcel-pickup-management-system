@@ -27,6 +27,7 @@ import { statusConfig, priorityConfig } from "./data/parcels";
 import { Parcel, ParcelFormData } from "./components/types";
 import QrScanner from "./components/QrScanner";
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications";
+import { createAdminNotification } from "@/lib/admin-notifications";
 import { AdminNotificationButton } from "@/app/admin-dashboard/components";
 import { AdminTimeFilter } from "@/components/admin-time-filter";
 import {
@@ -331,6 +332,14 @@ const handleScanSuccess = async (trackingId: string) => {
       type: "parcel_status",
       relatedId: selectedParcel.tracking_id,
     });
+
+    await createAdminNotification({
+      title: "Parcel Status Updated",
+      message: `${selectedParcel.tracking_id} is now ${parcelForm.status}.`,
+      type: "parcel_status",
+      relatedId: selectedParcel.tracking_id,
+      relatedTrackingId: selectedParcel.tracking_id,
+    });
   }
 
   // INSERT new parcel (manual entry)
@@ -371,6 +380,14 @@ const handleScanSuccess = async (trackingId: string) => {
       relatedId: trackingId,
     });
 
+    await createAdminNotification({
+      title: "Parcel Registered",
+      message: `${trackingId} was registered for ${parcelForm.receiver}.`,
+      type: "parcel_registered",
+      relatedId: trackingId,
+      relatedTrackingId: trackingId,
+    });
+
     if (parcelForm.status === "ready") {
       await createCustomerNotificationByContact({
         email: parcelForm.receiverEmail,
@@ -379,6 +396,14 @@ const handleScanSuccess = async (trackingId: string) => {
         message: `Your parcel ${trackingId} is ready for pickup.`,
         type: "parcel_status",
         relatedId: trackingId,
+      });
+
+      await createAdminNotification({
+        title: "Parcel Ready to Pickup",
+        message: `${trackingId} is ready for pickup.`,
+        type: "parcel_status",
+        relatedId: trackingId,
+        relatedTrackingId: trackingId,
       });
     }
   }

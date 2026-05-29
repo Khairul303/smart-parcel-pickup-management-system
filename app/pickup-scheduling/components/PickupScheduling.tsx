@@ -14,6 +14,7 @@ import {
 } from "@/lib/pickup-status"
 import type { PickupStatus } from "@/lib/pickup-status"
 import { createNotificationForCurrentUser } from "@/lib/customer-notifications"
+import { createAdminNotification } from "@/lib/admin-notifications"
 import {
   getEstimatedMinutes,
   getParcelCount,
@@ -34,6 +35,14 @@ export interface PickupSchedule {
   pickupAddress: string
   parcelDetails: string
   specialInstructions?: string
+  trackingIds?: string[]
+  relatedParcels?: {
+    id: string
+    tracking_id?: string | null
+    status?: string | null
+    sender?: string | null
+    receiver?: string | null
+  }[]
   queueNumber?: string
   estimatedWaitMinutes?: number
   createdAt: string
@@ -124,7 +133,30 @@ export function PickupScheduling({
         return
       }
 
-      const formatted: PickupSchedule[] = data.map((p) => ({
+      const allTrackingIds = Array.from(
+        new Set(
+          data.flatMap((p) =>
+            Array.isArray(p.tracking_ids) ? p.tracking_ids.filter(Boolean) : []
+          )
+        )
+      )
+      const { data: parcelRows } =
+        allTrackingIds.length > 0
+          ? await supabase
+              .from("parcels")
+              .select("id, tracking_id, status, sender, receiver")
+              .in("tracking_id", allTrackingIds)
+          : { data: [] }
+      const parcelsByTrackingId = new Map(
+        ((parcelRows ?? []) as NonNullable<PickupSchedule["relatedParcels"]>).map(
+          (parcel) => [parcel.tracking_id, parcel]
+        )
+      )
+
+      const formatted: PickupSchedule[] = data.map((p) => {
+        const trackingIds = p.tracking_ids ?? []
+
+        return {
         id: p.pickup_code,
         date: p.pickup_date,
         timeSlot: p.time_slot,
@@ -135,11 +167,16 @@ export function PickupScheduling({
         pickupAddress: p.pickup_address,
         parcelDetails: p.parcel_details,
         specialInstructions: p.special_instructions,
+        trackingIds,
+        relatedParcels: trackingIds
+          .map((id: string) => parcelsByTrackingId.get(id))
+          .filter(Boolean) as PickupSchedule["relatedParcels"],
         queueNumber: p.queue_number,
         estimatedWaitMinutes: p.estimated_wait_minutes,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
-      }))
+        }
+      })
 
       setPickupHistory(formatted)
     }
@@ -219,11 +256,41 @@ export function PickupScheduling({
       return false
     }
 
+    const { data: createdBooking } = await supabase
+      .from("pickup_bookings")
+      .select("pickup_code, queue_number, tracking_ids")
+      .eq("pickup_date", newPickup.date)
+      .eq("time_slot", newPickup.timeSlot)
+      .eq("customer_email", newPickup.customerEmail)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{
+        pickup_code: string
+        queue_number: string | null
+        tracking_ids: string[] | null
+      }>()
+
+    const bookingId = createdBooking?.pickup_code ?? `${newPickup.date} ${newPickup.timeSlot}`
+    const queueNumber = createdBooking?.queue_number ?? null
+    const bookedTrackingIds = createdBooking?.tracking_ids?.length
+      ? createdBooking.tracking_ids
+      : trackingIds
+
     await createNotificationForCurrentUser({
       title: "Pickup Booking Created",
       message: "Your pickup booking has been created successfully.",
       type: "booking_confirmation",
-      relatedId: `${newPickup.date} ${newPickup.timeSlot}`,
+      relatedId: bookingId,
+    })
+
+    await createAdminNotification({
+      title: "New Pickup Booking",
+      message: `${newPickup.customerName} booked ${newPickup.timeSlot} on ${newPickup.date}${queueNumber ? ` for queue ${queueNumber}` : ""}${bookedTrackingIds.length > 0 ? ` (${bookedTrackingIds.join(", ")})` : ""}.`,
+      type: "pickup_booking_created",
+      relatedId: bookingId,
+      relatedBookingId: bookingId,
+      relatedTrackingId: bookedTrackingIds.join(", ") || null,
+      relatedQueueNumber: queueNumber,
     })
 
     setRefreshKey((prev) => prev + 1)
@@ -261,6 +328,15 @@ export function PickupScheduling({
       relatedId: updatedPickup.id,
     })
 
+    await createAdminNotification({
+      title: "Pickup Booking Updated",
+      message: `${updatedPickup.customerName} updated pickup ${updatedPickup.id}.`,
+      type: "pickup_booking_updated",
+      relatedId: updatedPickup.id,
+      relatedBookingId: updatedPickup.id,
+      relatedTrackingId: updatedPickup.trackingIds?.join(", ") || null,
+    })
+
     setIsEditDialogOpen(false)
     setEditingPickup(null)
     setRefreshKey((prev) => prev + 1)
@@ -291,6 +367,14 @@ export function PickupScheduling({
       message: "Your pickup booking has been cancelled.",
       type: "booking_cancelled",
       relatedId: pickupId,
+    })
+
+    await createAdminNotification({
+      title: "Pickup Booking Cancelled",
+      message: `Pickup booking ${pickupId} was cancelled by the customer.`,
+      type: "pickup_booking_cancelled",
+      relatedId: pickupId,
+      relatedBookingId: pickupId,
     })
 
     setRefreshKey((prev) => prev + 1)

@@ -4,6 +4,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Filter } from "lucide-react"
 import { statusConfig } from "../types"
 
+const visibleStatusFilters = Object.entries(statusConfig).filter(
+  ([status]) => status !== "no_show"
+)
+
 interface FiltersProps {
   searchQuery: string
   onSearchChange: (value: string) => void
@@ -42,7 +46,7 @@ export function Filters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                {Object.entries(statusConfig).map(([status, config]) => (
+                {visibleStatusFilters.map(([status, config]) => (
                   <SelectItem key={status} value={status}>
                     <div className="flex items-center">
                       {config.icon}

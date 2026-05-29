@@ -73,7 +73,7 @@ export function PickupList({
 
       case "completed":
         return filteredPickups.filter(
-          (p) => p.status === "collected"
+          (p) => p.status === "collected" || p.status === "completed"
         )
 
       default:

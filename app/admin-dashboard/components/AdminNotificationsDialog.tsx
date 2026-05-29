@@ -38,10 +38,34 @@ const notificationConfig: Record<
     bg: "bg-red-50",
     label: "Cancelled",
   },
+  pickup_booking_cancelled: {
+    icon: AlertTriangle,
+    color: "text-red-600",
+    bg: "bg-red-50",
+    label: "Cancelled",
+  },
   booking_update: {
     icon: Info,
     color: "text-blue-600",
     bg: "bg-blue-50",
+    label: "Booking",
+  },
+  pickup_booking_updated: {
+    icon: Info,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    label: "Booking",
+  },
+  booking_confirmation: {
+    icon: Clock,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+    label: "Booking",
+  },
+  pickup_booking_created: {
+    icon: Clock,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
     label: "Booking",
   },
   parcel_registered: {
@@ -57,6 +81,12 @@ const notificationConfig: Record<
     label: "Parcel",
   },
   queue_update: {
+    icon: Clock,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+    label: "Queue",
+  },
+  pickup_queue_updated: {
     icon: Clock,
     color: "text-indigo-600",
     bg: "bg-indigo-50",
@@ -194,11 +224,20 @@ export function AdminNotificationsDialog({
                         <p className="mt-2 text-sm text-gray-600">
                           {notification.message}
                         </p>
-                        {notification.related_id && (
-                          <p className="mt-2 break-all text-xs text-gray-500">
-                            Ref: {notification.related_id}
-                          </p>
-                        )}
+                        <div className="mt-2 space-y-1 break-all text-xs text-gray-500">
+                          {notification.related_id && (
+                            <p>Ref: {notification.related_id}</p>
+                          )}
+                          {notification.related_booking_id && (
+                            <p>Booking: {notification.related_booking_id}</p>
+                          )}
+                          {notification.related_queue_number && (
+                            <p>Queue: {notification.related_queue_number}</p>
+                          )}
+                          {notification.related_tracking_id && (
+                            <p>Tracking: {notification.related_tracking_id}</p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         {!notification.is_read && (

@@ -15,7 +15,9 @@ export const AVERAGE_HANDLING_TIME = 3
 export type PickupStatus =
   | "booked"
   | "upcoming"
+  | "pending"
   | "checked_in"
+  | "completed"
   | "collected"
   | "no_show"
   | "cancelled"
@@ -77,7 +79,7 @@ export const statusConfig: Record<
   }
 > = {
   booked: {
-    label: "Booked",
+    label: "Upcoming",
     variant: "default",
     icon: <Calendar className="h-3 w-3 mr-1" />,
     colorClass: "text-blue-700 border-blue-300 bg-blue-50",
@@ -90,6 +92,13 @@ export const statusConfig: Record<
     colorClass: "text-blue-700 border-blue-300 bg-blue-50",
   },
 
+  pending: {
+    label: "Pending",
+    variant: "secondary",
+    icon: <ClockIcon className="h-3 w-3 mr-1" />,
+    colorClass: "text-amber-700 border-amber-300 bg-amber-50",
+  },
+
   checked_in: {
     label: "Checked In",
     variant: "secondary",
@@ -99,6 +108,13 @@ export const statusConfig: Record<
 
   collected: {
     label: "Collected",
+    variant: "outline",
+    icon: <CheckCircle className="h-3 w-3 mr-1" />,
+    colorClass: "text-purple-700 border-purple-300",
+  },
+
+  completed: {
+    label: "Completed",
     variant: "outline",
     icon: <CheckCircle className="h-3 w-3 mr-1" />,
     colorClass: "text-purple-700 border-purple-300",

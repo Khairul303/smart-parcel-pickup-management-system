@@ -1,4 +1,4 @@
-import { Package } from "lucide-react"
+import { PostCentreTitleLogo } from "@/components/postcentre-title-logo"
 import { LoginForm } from "./LoginForm"
 
 export default function LoginPage() {
@@ -7,9 +7,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Brand Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-3 shadow-sm">
-            <Package className="h-6 w-6 text-white" />
-          </div>
+          <PostCentreTitleLogo className="mb-3 h-16 w-48" />
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900">POSTCENTRE BATU PAHAT</h1>
           </div>

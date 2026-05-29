@@ -46,6 +46,12 @@ export type AdminNotification = {
   message: string
   type: string
   related_id: string | null
+  related_booking_id?: string | null
+  related_tracking_id?: string | null
+  related_queue_number?: string | null
+  audience?: string | null
+  role_target?: string | null
+  user_id?: string | null
   is_read: boolean
   created_at: string
 }
@@ -119,9 +125,22 @@ const normalizeAdminNotification = (item: Partial<AdminNotification>): AdminNoti
   message: item.message ?? "A system record was updated.",
   type: item.type ?? "system",
   related_id: item.related_id ?? null,
+  related_booking_id: item.related_booking_id ?? null,
+  related_tracking_id: item.related_tracking_id ?? null,
+  related_queue_number: item.related_queue_number ?? null,
+  audience: item.audience ?? null,
+  role_target: item.role_target ?? null,
+  user_id: item.user_id ?? null,
   is_read: Boolean(item.is_read),
   created_at: item.created_at ?? new Date().toISOString(),
 })
+
+const isAdminNotification = (item: Partial<AdminNotification>) =>
+  item.audience === "admin" ||
+  item.audience === "staff" ||
+  item.role_target === "admin" ||
+  item.role_target === "staff" ||
+  (!item.user_id && item.audience !== "customer")
 
 const buildOperationalNotifications = (
   parcels: AdminParcel[],
@@ -227,13 +246,17 @@ export function useAdminRealtimeData({
       const adminNotifications = await supabase
         .from("notifications")
         .select("*")
-        .or("audience.eq.admin,role_target.in.(admin,staff),user_id.is.null")
+        .or("audience.in.(admin,staff),role_target.in.(admin,staff),user_id.is.null")
         .order("created_at", { ascending: false })
         .limit(50)
 
       if (!adminNotifications.error) {
         setDbNotifications(
-          sortByNewest((adminNotifications.data ?? []).map(normalizeAdminNotification))
+          sortByNewest(
+            (adminNotifications.data ?? [])
+              .filter(isAdminNotification)
+              .map(normalizeAdminNotification)
+          )
         )
       } else {
         const globalNotifications = await supabase
@@ -245,8 +268,14 @@ export function useAdminRealtimeData({
 
         if (!globalNotifications.error) {
           setDbNotifications(
-            sortByNewest((globalNotifications.data ?? []).map(normalizeAdminNotification))
+            sortByNewest(
+              (globalNotifications.data ?? [])
+                .filter(isAdminNotification)
+                .map(normalizeAdminNotification)
+            )
           )
+        } else {
+          setError((current) => current ?? globalNotifications.error.message)
         }
       }
     }
@@ -323,8 +352,27 @@ export function useAdminRealtimeData({
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "notifications" },
-            () => {
-              if (active) loadData()
+            (payload) => {
+              if (!active) return
+
+              if (payload.eventType === "DELETE") {
+                const oldNotification = payload.old as Partial<AdminNotification>
+                setDbNotifications((prev) =>
+                  prev.filter((item) => item.id !== oldNotification.id)
+                )
+                return
+              }
+
+              const nextNotification = payload.new as Partial<AdminNotification>
+              if (!isAdminNotification(nextNotification)) return
+
+              setDbNotifications((prev) => {
+                const normalized = normalizeAdminNotification(nextNotification)
+                return sortByNewest([
+                  normalized,
+                  ...prev.filter((item) => item.id !== normalized.id),
+                ])
+              })
             }
           )
           .subscribe()

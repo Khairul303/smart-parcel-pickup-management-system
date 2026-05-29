@@ -1,6 +1,6 @@
 "use client"
 
-import { Calendar, Clock } from "lucide-react"
+import { Calendar, CheckCircle, Clock } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import supabase from "@/lib/supabase"
 import {
@@ -14,13 +14,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { NewPickupPayload } from "./PickupScheduling"
 import { PICKUP_STATUS } from "@/lib/pickup-status"
@@ -77,6 +71,21 @@ interface PreviewResult {
   available_quota?: number
 }
 
+const READY_PARCEL_STATUSES = new Set([
+  "ready",
+  "ready-for-pickup",
+  "ready_to_pickup",
+  "arrived",
+])
+
+type SuccessSummary = {
+  pickupDate: string
+  timeSlot: string
+  queueNumber: number | null
+  trackingIds: string[]
+  estimatedWaitMinutes: number
+}
+
 export function BookingDialog({
   isOpen,
   onOpenChange,
@@ -87,17 +96,18 @@ export function BookingDialog({
   const [queuePreview, setQueuePreview] = useState<number | null>(null)
   const [estimatedWaitMinutes, setEstimatedWaitMinutes] = useState(0)
   const [availableQuota, setAvailableQuota] = useState<number | null>(null)
-  const [selectedTrackingId, setSelectedTrackingId] = useState("")
+  const [selectedTrackingIds, setSelectedTrackingIds] = useState<string[]>([])
   const [manualTrackingId, setManualTrackingId] = useState("")
   const [livePreviewKey, setLivePreviewKey] = useState(0)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [successSummary, setSuccessSummary] = useState<SuccessSummary | null>(null)
   const [notice, setNotice] = useState<{
     title: string
     message: string
   } | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const {
-    trackingIds: registeredTrackingIds,
+    trackingParcels,
     loading: trackingIdsLoading,
     error: trackingIdsError,
   } = useUserTrackingIds()
@@ -107,16 +117,28 @@ export function BookingDialog({
     specialInstructions: "",
   })
 
-  const cleanTrackingIds = useMemo(
-    () => {
-      const selected = selectedTrackingId.trim()
-      if (selected) return [selected]
-
-      const manual = manualTrackingId.trim()
-      return manual ? [manual] : []
-    },
-    [manualTrackingId, selectedTrackingId]
+  const availableParcels = useMemo(
+    () =>
+      trackingParcels.filter(
+        (parcel) =>
+          parcel.tracking_id &&
+          READY_PARCEL_STATUSES.has((parcel.status ?? "").toLowerCase())
+      ),
+    [trackingParcels]
   )
+  const availableTrackingIds = useMemo(
+    () => availableParcels.map((parcel) => parcel.tracking_id),
+    [availableParcels]
+  )
+  const cleanTrackingIds = useMemo(() => {
+    const manual = manualTrackingId.trim()
+    return Array.from(
+      new Set([
+        ...selectedTrackingIds.map((id) => id.trim()).filter(Boolean),
+        ...(manual ? [manual] : []),
+      ])
+    )
+  }, [manualTrackingId, selectedTrackingIds])
   const parcelCount = getParcelCount(cleanTrackingIds, formData.parcelDetails)
   const estimatedMinutes = getEstimatedMinutes(parcelCount)
   const quotaError =
@@ -287,7 +309,7 @@ export function BookingDialog({
   }
 
   const handleSubmit = async () => {
-    if (!profile || !selectedDate || !selectedTimeSlot || !formData.parcelDetails.trim()) {
+    if (!profile || !selectedDate || !selectedTimeSlot) {
       alert("Please complete required fields")
       return
     }
@@ -295,6 +317,23 @@ export function BookingDialog({
     if (cleanTrackingIds.length === 0) {
       setSubmitError("Select a registered tracking ID or enter one manually.")
       return
+    }
+
+    const manual = manualTrackingId.trim()
+    if (manual) {
+      const manualParcel = trackingParcels.find(
+        (parcel) => parcel.tracking_id.toLowerCase() === manual.toLowerCase()
+      )
+
+      if (!manualParcel) {
+        setSubmitError("Tracking ID was not found under your account.")
+        return
+      }
+
+      if (!READY_PARCEL_STATUSES.has((manualParcel.status ?? "").toLowerCase())) {
+        setSubmitError("This tracking ID is not available for pickup yet.")
+        return
+      }
     }
 
     const latestQuota = await fetchLatestAvailableQuota()
@@ -327,19 +366,33 @@ export function BookingDialog({
       customerPhone: profile.no_telephone,
       customerEmail: profile.email,
       pickupAddress: formData.pickupAddress,
-      parcelDetails: formData.parcelDetails,
+      parcelDetails:
+        formData.parcelDetails.trim() ||
+        `Tracking ID(s): ${cleanTrackingIds.join(", ")}`,
       specialInstructions: formData.specialInstructions,
       trackingIds: cleanTrackingIds,
       estimatedMinutes,
       estimatedWaitMinutes,
     })
 
-    if (booked) onOpenChange(false)
+    if (booked) {
+      setSuccessSummary({
+        pickupDate: selectedDate,
+        timeSlot: selectedTimeSlot,
+        queueNumber: queuePreview,
+        trackingIds: cleanTrackingIds,
+        estimatedWaitMinutes,
+      })
+      setSelectedTrackingIds([])
+      setManualTrackingId("")
+      setFormData((prev) => ({ ...prev, parcelDetails: "" }))
+      onOpenChange(false)
+    }
   }
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      setSelectedTrackingId("")
+      setSelectedTrackingIds([])
       setManualTrackingId("")
       setSubmitError(null)
       setNotice(null)
@@ -401,7 +454,7 @@ export function BookingDialog({
             }
           />
           <Textarea
-            placeholder="Parcel Details *"
+            placeholder="Parcel Details (optional)"
             value={formData.parcelDetails}
             onChange={(e) =>
               setFormData({ ...formData, parcelDetails: e.target.value })
@@ -409,43 +462,71 @@ export function BookingDialog({
           />
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">
-              Select Registered Tracking ID
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-medium">Available Parcels at PostCentre</div>
+                <p className="text-xs text-muted-foreground">
+                  Select one or more parcels for this pickup.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={availableTrackingIds.length === 0}
+                onClick={() => {
+                  const allSelected =
+                    selectedTrackingIds.length === availableTrackingIds.length
+                  setSelectedTrackingIds(allSelected ? [] : availableTrackingIds)
+                  setSubmitError(null)
+                }}
+              >
+                {selectedTrackingIds.length === availableTrackingIds.length &&
+                availableTrackingIds.length > 0
+                  ? "Clear All"
+                  : "Select All"}
+              </Button>
             </div>
-            <Select
-              value={selectedTrackingId || undefined}
-              onValueChange={(value) => {
-                if (value === "__empty") return
-                setSelectedTrackingId(value)
-                setSubmitError(null)
-              }}
-              disabled={trackingIdsLoading || registeredTrackingIds.length === 0}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue
-                  placeholder={
-                    trackingIdsLoading
-                      ? "Loading tracking IDs..."
-                      : registeredTrackingIds.length === 0
-                        ? "No registered tracking ID found"
-                        : "Choose tracking ID from your account"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {registeredTrackingIds.length === 0 ? (
-                  <SelectItem value="__empty" disabled>
-                    No registered tracking ID found
-                  </SelectItem>
-                ) : (
-                  registeredTrackingIds.map((id) => (
-                    <SelectItem key={id} value={id}>
-                      {id}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3">
+              {trackingIdsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading parcels...</p>
+              ) : availableParcels.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No parcel available for pickup.
+                </p>
+              ) : (
+                availableParcels.map((parcel) => {
+                  const checked = selectedTrackingIds.includes(parcel.tracking_id)
+
+                  return (
+                    <label
+                      key={parcel.id}
+                      className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(nextChecked) => {
+                          setSelectedTrackingIds((prev) =>
+                            nextChecked === true
+                              ? Array.from(new Set([...prev, parcel.tracking_id]))
+                              : prev.filter((id) => id !== parcel.tracking_id)
+                          )
+                          setSubmitError(null)
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-all text-sm font-medium">
+                          {parcel.tracking_id}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {parcel.sender ? `From ${parcel.sender}` : "Ready for pickup"}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })
+              )}
+            </div>
             {trackingIdsError && (
               <p className="text-sm text-red-500">{trackingIdsError}</p>
             )}
@@ -461,9 +542,9 @@ export function BookingDialog({
                 setSubmitError(null)
               }}
             />
-            {selectedTrackingId && manualTrackingId.trim() && (
+            {selectedTrackingIds.length > 0 && manualTrackingId.trim() && (
               <p className="text-xs text-muted-foreground">
-                The selected registered tracking ID will be used for this booking.
+                Selected parcels and the manual tracking ID will be combined.
               </p>
             )}
           </div>
@@ -508,6 +589,64 @@ export function BookingDialog({
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setNotice(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(successSummary)}
+        onOpenChange={(open) => !open && setSuccessSummary(null)}
+      >
+        <DialogContent className="w-[92vw] max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Booking Successful
+            </DialogTitle>
+            <DialogDescription>
+              Your pickup booking has been created successfully.
+            </DialogDescription>
+          </DialogHeader>
+          {successSummary && (
+            <div className="space-y-3 rounded-md border bg-gray-50 p-4 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Pickup Date</span>
+                <span className="font-medium">
+                  {formatMalaysiaDate(successSummary.pickupDate)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Time Slot</span>
+                <span className="font-medium">{successSummary.timeSlot}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Queue</span>
+                <span className="font-medium">
+                  {successSummary.queueNumber
+                    ? `Q-${String(successSummary.queueNumber).padStart(3, "0")}`
+                    : "Pending"}
+                </span>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Tracking ID(s)</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {successSummary.trackingIds.map((id) => (
+                    <span key={id} className="rounded-md border bg-white px-2 py-1 text-xs">
+                      {id}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Estimated Wait</span>
+                <span className="font-medium">
+                  ~{successSummary.estimatedWaitMinutes} minutes
+                </span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setSuccessSummary(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

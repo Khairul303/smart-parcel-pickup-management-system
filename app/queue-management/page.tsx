@@ -36,12 +36,14 @@ import { Filters } from "./components/filters"
 import { PickupList } from "./components/pickup-list"
 import { QueueStats } from "./components/queue-stats"
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications"
+import { createAdminNotification } from "@/lib/admin-notifications"
 import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 
 /* =====================
    DB ROW TYPE
 ===================== */
 interface PickupRow {
+  id?: string | null
   pickup_code: string
   pickup_date: string
   time_slot: string
@@ -49,12 +51,42 @@ interface PickupRow {
   customer_name: string
   customer_email: string | null
   customer_phone: string | null
+  parcel_details?: string | null
+  tracking_id?: string | null
   tracking_ids: string[] | null
-  status: "booked" | "upcoming" | "checked_in" | "collected" | "cancelled" | "no_show"
+  status: "booked" | "upcoming" | "pending" | "checked_in" | "completed" | "collected" | "cancelled" | "no_show"
   preparation_status: "pending" | "prepared"
 }
 
 type ParcelRow = NonNullable<Pickup["related_parcels"]>[number]
+
+const TRACKING_ID_PATTERN = /\b[A-Z0-9][A-Z0-9-]{4,}\b/gi
+
+const logLoadWarning = (message: string, error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(message, error)
+  }
+}
+
+const getTrackingIdsFromPickup = (pickup: PickupRow) => {
+  const directIds = [
+    ...(Array.isArray(pickup.tracking_ids) ? pickup.tracking_ids : []),
+    pickup.tracking_id,
+  ]
+
+  const detailIds =
+    pickup.parcel_details
+      ?.match(TRACKING_ID_PATTERN)
+      ?.filter((value) => /\d/.test(value)) ?? []
+
+  return Array.from(
+    new Set(
+      [...directIds, ...detailIds]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .map((value) => value.trim())
+    )
+  )
+}
 
 /* =====================
    MALAYSIA DATE (Asia/KL)
@@ -73,32 +105,59 @@ export default function PickupManagementPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
+  const updatePickupLocal = useCallback(
+    (pickupId: string, updates: Partial<Pickup>) => {
+      setPickups((prev) =>
+        prev.map((pickup) =>
+          pickup.id === pickupId ? { ...pickup, ...updates } : pickup
+        )
+      )
+    },
+    []
+  )
+
   /* =====================
      LOAD PICKUPS
   ===================== */
   const loadPickups = useCallback(async () => {
     const todayStr = getMalaysiaDateString()
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("pickup_bookings") // ✅ SINGLE SOURCE OF TRUTH
-      .select(`
-        pickup_code,
-        pickup_date,
-        time_slot,
-        queue_number,
-        customer_name,
-        customer_email,
-        customer_phone,
-        tracking_ids,
-        status,
-        preparation_status
-      `)
+      .select("*")
       .gte("pickup_date", todayStr)
       .order("pickup_date", { ascending: true })
         .order("time_slot", { ascending: true })
 
+    if (error) {
+      logLoadWarning("Primary pickup query failed. Retrying with core fields.", error)
+
+      const fallback = await supabase
+        .from("pickup_bookings")
+        .select(`
+          id,
+          pickup_code,
+          pickup_date,
+          time_slot,
+          queue_number,
+          customer_name,
+          customer_email,
+          customer_phone,
+          parcel_details,
+          tracking_ids,
+          status,
+          preparation_status
+        `)
+        .gte("pickup_date", todayStr)
+        .order("pickup_date", { ascending: true })
+        .order("time_slot", { ascending: true })
+
+      data = fallback.data
+      error = fallback.error
+    }
+
     const trackingIds = Array.from(
-      new Set((data as PickupRow[] | null)?.flatMap((p) => p.tracking_ids ?? []) ?? [])
+      new Set((data as PickupRow[] | null)?.flatMap(getTrackingIdsFromPickup) ?? [])
     )
     const { data: parcelData } =
       trackingIds.length > 0
@@ -116,26 +175,30 @@ export default function PickupManagementPage() {
 
     startTransition(() => {
       if (error) {
-        console.error("Failed to load pickups:", error)
+        logLoadWarning("Failed to load pickups.", error)
         setPickups([])
       } else {
         const mapped =
-          (data as PickupRow[] | null)?.map((p) => ({
-            id: p.pickup_code,
-            pickup_date: p.pickup_date,
-            time_slot: p.time_slot,
-            queue_number: p.queue_number ?? "-",
-            customer_name: p.customer_name,
-            customer_email: p.customer_email,
-            customer_phone: p.customer_phone ?? undefined,
-            tracking_ids: p.tracking_ids ?? [],
-            parcel_count: p.tracking_ids?.length ?? 0,
-            related_parcels: (p.tracking_ids ?? [])
-              .map((trackingId) => parcelsByTrackingId.get(trackingId))
-              .filter((parcel): parcel is ParcelRow => Boolean(parcel)),
-            status: p.status,
-            preparation_status: p.preparation_status,
-          })) ?? []
+          ((data as PickupRow[] | null) ?? []).filter(Boolean).map((p) => {
+            const pickupTrackingIds = getTrackingIdsFromPickup(p)
+
+            return {
+              id: p.pickup_code ?? p.id ?? `${p.pickup_date}-${p.time_slot}-${p.queue_number}`,
+              pickup_date: p.pickup_date ?? "",
+              time_slot: p.time_slot ?? "",
+              queue_number: p.queue_number ?? "-",
+              customer_name: p.customer_name ?? "Customer",
+              customer_email: p.customer_email ?? null,
+              customer_phone: p.customer_phone ?? undefined,
+              tracking_ids: pickupTrackingIds,
+              parcel_count: pickupTrackingIds.length,
+              related_parcels: pickupTrackingIds
+                .map((trackingId) => parcelsByTrackingId.get(trackingId))
+                .filter((parcel): parcel is ParcelRow => Boolean(parcel)),
+              status: p.status ?? "booked",
+              preparation_status: p.preparation_status ?? "pending",
+            }
+          }) ?? []
 
         // numeric-safe queue sorting
         mapped.sort((a, b) => {
@@ -191,9 +254,14 @@ export default function PickupManagementPage() {
      FILTERING
   ===================== */
   const filteredPickups = pickups.filter((p) => {
+    const query = searchQuery.toLowerCase()
     const matchesSearch =
-      p.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.queue_number.toLowerCase().includes(searchQuery.toLowerCase())
+      p.customer_name.toLowerCase().includes(query) ||
+      p.queue_number.toLowerCase().includes(query) ||
+      (p.customer_phone ?? "").toLowerCase().includes(query) ||
+      p.tracking_ids.some((trackingId) =>
+        trackingId.toLowerCase().includes(query)
+      )
 
     const matchesStatus =
       statusFilter === "all" || p.status === statusFilter
@@ -215,7 +283,7 @@ export default function PickupManagementPage() {
       (p) => p.status === "checked_in"
     ).length,
     collected: pickups.filter(
-      (p) => p.status === "collected"
+      (p) => p.status === "collected" || p.status === "completed"
     ).length,
   }
 
@@ -228,10 +296,17 @@ export default function PickupManagementPage() {
      ACTIONS (SAME TABLE)
   ===================== */
   const handlePrepare = async (pickup: Pickup) => {
-    await supabase
+    const { error } = await supabase
       .from("pickup_bookings")
       .update({ preparation_status: "prepared" })
       .eq("pickup_code", pickup.id)
+
+    if (error) {
+      alert(error.message)
+      return
+    }
+
+    updatePickupLocal(pickup.id, { preparation_status: "prepared" })
 
     await createCustomerNotificationByContact({
       email: pickup.customer_email,
@@ -242,6 +317,15 @@ export default function PickupManagementPage() {
       relatedId: pickup.id,
     })
 
+    await createAdminNotification({
+      title: "Pickup Queue Updated",
+      message: `${pickup.queue_number} was marked as prepared${pickup.tracking_ids.length > 0 ? ` for ${pickup.tracking_ids.join(", ")}` : ""}.`,
+      type: "pickup_queue_updated",
+      relatedId: pickup.id,
+      relatedBookingId: pickup.id,
+      relatedTrackingId: pickup.tracking_ids.join(", ") || null,
+      relatedQueueNumber: pickup.queue_number,
+    })
   }
 
   const handleCheckIn = async (pickup: Pickup) => {
@@ -255,10 +339,17 @@ export default function PickupManagementPage() {
       return
     }
 
-    await supabase
+    const { error } = await supabase
       .from("pickup_bookings")
       .update({ status: "checked_in" })
       .eq("pickup_code", pickup.id)
+
+    if (error) {
+      alert(error.message)
+      return
+    }
+
+    updatePickupLocal(pickup.id, { status: "checked_in" })
 
     await createCustomerNotificationByContact({
       email: pickup.customer_email,
@@ -269,13 +360,29 @@ export default function PickupManagementPage() {
       relatedId: pickup.id,
     })
 
+    await createAdminNotification({
+      title: "Customer Checked In",
+      message: `${pickup.customer_name} checked in for ${pickup.queue_number}${pickup.tracking_ids.length > 0 ? ` (${pickup.tracking_ids.join(", ")})` : ""}.`,
+      type: "pickup_queue_updated",
+      relatedId: pickup.id,
+      relatedBookingId: pickup.id,
+      relatedTrackingId: pickup.tracking_ids.join(", ") || null,
+      relatedQueueNumber: pickup.queue_number,
+    })
   }
 
   const handleCollected = async (pickup: Pickup) => {
-    await supabase
+    const { error } = await supabase
       .from("pickup_bookings")
       .update({ status: "collected" })
       .eq("pickup_code", pickup.id)
+
+    if (error) {
+      alert(error.message)
+      return
+    }
+
+    updatePickupLocal(pickup.id, { status: "collected" })
 
     await createCustomerNotificationByContact({
       email: pickup.customer_email,
@@ -286,6 +393,15 @@ export default function PickupManagementPage() {
       relatedId: pickup.id,
     })
 
+    await createAdminNotification({
+      title: "Pickup Collected",
+      message: `${pickup.customer_name} collected ${pickup.tracking_ids.length > 0 ? pickup.tracking_ids.join(", ") : pickup.queue_number}.`,
+      type: "pickup_queue_updated",
+      relatedId: pickup.id,
+      relatedBookingId: pickup.id,
+      relatedTrackingId: pickup.tracking_ids.join(", ") || null,
+      relatedQueueNumber: pickup.queue_number,
+    })
   }
 
   /* =====================
@@ -325,6 +441,15 @@ export default function PickupManagementPage() {
 
         {/* CONTENT */}
         <main className="min-h-screen min-w-0 space-y-6 bg-linear-to-b from-gray-50/50 to-white p-4 md:p-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Pickup Management
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Manage live pickup queues, preparation status, and parcel collection.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard
               title="Total Pickups"
