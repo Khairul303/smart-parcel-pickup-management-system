@@ -236,6 +236,51 @@ export function useCustomerNotifications() {
     }
   }, [unreadCount, userId])
 
+  const clearAllNotifications = useCallback(async () => {
+    if (!userId || notifications.length === 0) return
+    if (!confirm("Clear all notifications?")) return
+
+    const previousNotifications = notifications
+    setNotifications([])
+    setError(null)
+
+    const { error: deleteError } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("user_id", userId)
+      .eq("audience", "customer")
+
+    if (deleteError && isMissingAudienceColumnError(deleteError.message)) {
+      const fallback = await supabase
+        .from("notifications")
+        .delete()
+        .eq("user_id", userId)
+
+      if (!fallback.error) return
+
+      setNotifications(previousNotifications)
+
+      if (isMissingNotificationsTableError(fallback.error.message)) {
+        setError(null)
+        return
+      }
+
+      setError(fallback.error.message || "Unable to clear notifications.")
+      return
+    }
+
+    if (deleteError) {
+      setNotifications(previousNotifications)
+
+      if (isMissingNotificationsTableError(deleteError.message)) {
+        setError(null)
+        return
+      }
+
+      setError(deleteError.message || "Unable to clear notifications.")
+    }
+  }, [notifications, userId])
+
   return {
     notifications,
     unreadCount,
@@ -243,6 +288,7 @@ export function useCustomerNotifications() {
     error,
     markAsRead,
     markAllAsRead,
+    clearAllNotifications,
     deleteNotification,
     reload: userId ? () => loadNotifications(userId) : undefined,
   }

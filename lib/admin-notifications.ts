@@ -1,6 +1,11 @@
 import supabase from "@/lib/supabase"
 
 export type AdminNotificationType =
+  | "new_booking"
+  | "queue_updated"
+  | "booking_cancelled"
+  | "parcel_status_updated"
+  | "parcel_collected"
   | "pickup_booking_created"
   | "pickup_booking_updated"
   | "pickup_booking_cancelled"
@@ -89,7 +94,10 @@ export const createAdminNotification = async ({
       ...basePayload,
       audience: "admin",
       role_target: "staff",
+      category: "operations",
       related_booking_id: relatedBookingId,
+      related_parcel_id: relatedTrackingId,
+      related_queue_id: relatedQueueNumber,
       related_tracking_id: relatedTrackingId,
       related_queue_number: relatedQueueNumber,
     },
@@ -109,7 +117,10 @@ export const createAdminNotification = async ({
 
     const canFallback =
       isMissingColumnError(error.message, "audience") ||
-      isMissingColumnError(error.message, "role_target")
+      isMissingColumnError(error.message, "role_target") ||
+      isMissingColumnError(error.message, "category") ||
+      isMissingColumnError(error.message, "related_parcel_id") ||
+      isMissingColumnError(error.message, "related_queue_id")
 
     if (!canFallback) {
       logNotificationWarning("Admin notification was skipped:", error)

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Edit, Eye, Trash2, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Edit, Eye, Search, Trash2, XCircle } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Table,
   TableBody,
@@ -49,17 +59,44 @@ interface PickupHistoryProps {
   pickups: PickupSchedule[]
   onEdit: (pickup: PickupSchedule) => void
   onCancel: (pickupId: string) => void
+  onDeleteCancelled: (pickupId: string) => void
   onReschedule: (pickup: PickupSchedule) => void
+  page: number
+  pageSize: number
+  totalCount: number
+  searchQuery: string
+  statusFilter: string
+  onSearchChange: (value: string) => void
+  onStatusFilterChange: (value: string) => void
+  onPageChange: (page: number) => void
 }
 
 export function PickupHistory({
   pickups,
   onEdit,
   onCancel,
+  onDeleteCancelled,
+  page,
+  pageSize,
+  totalCount,
+  searchQuery,
+  statusFilter,
+  onSearchChange,
+  onStatusFilterChange,
+  onPageChange,
 }: PickupHistoryProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedPickup, setSelectedPickup] = useState<PickupSchedule | null>(null)
+  const [deletePickup, setDeletePickup] = useState<PickupSchedule | null>(null)
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .filter((pageNumber) => {
+      if (totalPages <= 5) return true
+      return (
+        pageNumber === 1 ||
+        pageNumber === totalPages ||
+        Math.abs(pageNumber - page) <= 1
+      )
+    })
 
   const getStatusBadge = (status: PickupSchedule["status"]) => {
     const displayStatus = normalizePickupStatus(status)
@@ -71,22 +108,7 @@ export function PickupHistory({
     )
   }
 
-  // ======================
-  // FILTER PICKUPS
-  // ======================
-  const filteredPickups = pickups.filter((pickup) => {
-    const search = searchQuery.toLowerCase()
-
-    const matchesSearch =
-      pickup.id.toLowerCase().includes(search) ||
-      pickup.parcelDetails.toLowerCase().includes(search) ||
-      pickup.pickupAddress.toLowerCase().includes(search)
-
-    const matchesStatus =
-      statusFilter === "all" || normalizePickupStatus(pickup.status) === statusFilter
-
-    return matchesSearch && matchesStatus
-  })
+  const showPagination = totalCount > pageSize
 
   // ======================
   // QUEUE → ESTIMATED WAIT
@@ -121,11 +143,11 @@ export function PickupHistory({
                 placeholder="Search pickups..."
                 className="w-full pl-10"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => onSearchChange(e.target.value)}
               />
             </div>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={onStatusFilterChange}>
               <SelectTrigger className="w-full sm:w-[140px]">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -144,7 +166,7 @@ export function PickupHistory({
 
       <CardContent className="min-w-0">
         <div className="space-y-3 md:hidden">
-          {filteredPickups.map((pickup) => (
+          {pickups.map((pickup) => (
             <div key={pickup.id} className="rounded-md border p-3">
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -196,28 +218,40 @@ export function PickupHistory({
                   className="h-8 w-8 p-0"
                   onClick={() => onEdit(pickup)}
                   disabled={
-                    normalizePickupStatus(pickup.status) === "collected" ||
                     normalizePickupStatus(pickup.status) === "cancelled"
                   }
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
 
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                  onClick={() => onCancel(pickup.id)}
-                  disabled={
-                    normalizePickupStatus(pickup.status) === "collected" ||
-                    normalizePickupStatus(pickup.status) === "cancelled"
-                  }
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {normalizePickupStatus(pickup.status) === "cancelled" ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                    onClick={() => setDeletePickup(pickup)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                    onClick={() => onCancel(pickup.id)}
+                    disabled={normalizePickupStatus(pickup.status) === "collected"}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
+          {pickups.length === 0 && (
+            <div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
+              No pickup bookings found.
+            </div>
+          )}
         </div>
 
         <div className="hidden w-full min-w-0 rounded-md border md:block">
@@ -236,7 +270,7 @@ export function PickupHistory({
             </TableHeader>
 
             <TableBody>
-              {filteredPickups.map((pickup) => (
+              {pickups.map((pickup) => (
                 <TableRow key={pickup.id}>
                   <TableCell className="truncate px-2 font-medium">
                     {pickup.id}
@@ -292,32 +326,94 @@ export function PickupHistory({
                         className="h-8 w-8 p-0"
                         onClick={() => onEdit(pickup)}
                         disabled={
-                          normalizePickupStatus(pickup.status) === "collected" ||
                           normalizePickupStatus(pickup.status) === "cancelled"
                         }
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        onClick={() => onCancel(pickup.id)}
-                        disabled={
-                          normalizePickupStatus(pickup.status) === "collected" ||
-                          normalizePickupStatus(pickup.status) === "cancelled"
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {normalizePickupStatus(pickup.status) === "cancelled" ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          onClick={() => setDeletePickup(pickup)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          onClick={() => onCancel(pickup.id)}
+                          disabled={normalizePickupStatus(pickup.status) === "collected"}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
+              {pickups.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    No pickup bookings found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
+
+        {showPagination && (
+          <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPageChange(Math.max(page - 1, 1))}
+                disabled={page <= 1}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Previous
+              </Button>
+              {pageNumbers.map((pageNumber, index) => {
+                const previous = pageNumbers[index - 1]
+                const showGap = previous && pageNumber - previous > 1
+
+                return (
+                  <span key={pageNumber} className="flex items-center gap-1">
+                    {showGap && (
+                      <span className="px-1 text-sm text-muted-foreground">...</span>
+                    )}
+                    <Button
+                      variant={pageNumber === page ? "default" : "outline"}
+                      size="sm"
+                      className="h-9 w-9 p-0"
+                      onClick={() => onPageChange(pageNumber)}
+                    >
+                      {pageNumber}
+                    </Button>
+                  </span>
+                )
+              })}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPageChange(Math.min(page + 1, totalPages))}
+                disabled={page >= totalPages}
+              >
+                Next
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
 
       <Dialog
@@ -449,6 +545,33 @@ export function PickupHistory({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(deletePickup)}
+        onOpenChange={(open) => !open && setDeletePickup(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Cancelled Booking</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this cancelled booking from your pickup history?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                if (!deletePickup) return
+                onDeleteCancelled(deletePickup.id)
+                setDeletePickup(null)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

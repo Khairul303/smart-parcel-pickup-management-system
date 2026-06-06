@@ -24,6 +24,8 @@ export type LiveQueueItem = {
 }
 
 type PickupBookingRow = {
+  id?: string | null
+  user_id?: string | null
   pickup_code: string
   pickup_date: string
   time_slot: string
@@ -46,29 +48,102 @@ const getMalaysiaDateString = () =>
 const isActiveQueueStatus = (status: string): status is ActiveQueueStatus =>
   ACTIVE_QUEUE_STATUSES.includes(status as ActiveQueueStatus)
 
+const isMissingUserIdColumnError = (message?: string | null) =>
+  Boolean(
+    message?.toLowerCase().includes("user_id") &&
+      (message.toLowerCase().includes("schema cache") ||
+        message.toLowerCase().includes("column"))
+  )
+
 const getQueueIndex = (queueNumber: string) =>
   Number.parseInt(queueNumber.replace(/\D/g, ""), 10) || Number.MAX_SAFE_INTEGER
 
 type SlotQueueRow = {
+  id?: string | null
+  user_id?: string | null
   pickup_code: string
   queue_number: string | null
+  customer_email?: string | null
   status: string
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+type QueueGroupableRow = Pick<
+  PickupBookingRow,
+  "id" | "pickup_code" | "user_id"
+> & {
+  customer_email?: string | null
+}
+
+const getQueueSortValue = (row: {
+  queue_number?: string | null
+  created_at?: string | null
+}) => {
+  const queueIndex = getQueueIndex(row.queue_number ?? "-")
+  if (queueIndex !== Number.MAX_SAFE_INTEGER) return queueIndex
+
+  return new Date(row.created_at ?? 0).getTime()
+}
+
+const getQueueGroupingKey = (
+  row: QueueGroupableRow,
+  currentUserId: string | null,
+  currentUserEmail: string | null
+) => {
+  if (row.user_id) return `user:${row.user_id}`
+
+  if (
+    currentUserId &&
+    currentUserEmail &&
+    row.customer_email?.toLowerCase() === currentUserEmail.toLowerCase()
+  ) {
+    return `user:${currentUserId}`
+  }
+
+  return `booking:${row.id ?? row.pickup_code}`
+}
+
+const buildUniqueSlotQueue = (
+  slotQueue: SlotQueueRow[],
+  currentUserId: string | null,
+  currentUserEmail: string | null
+) => {
+  const grouped = new Map<string, SlotQueueRow>()
+
+  slotQueue
+    .filter((item) => isActiveQueueStatus(item.status))
+    .sort((a, b) => getQueueSortValue(a) - getQueueSortValue(b))
+    .forEach((item) => {
+      const key = getQueueGroupingKey(item, currentUserId, currentUserEmail)
+      if (!grouped.has(key)) {
+        grouped.set(key, item)
+      }
+    })
+
+  return Array.from(grouped.values())
 }
 
 const mapQueueRow = (
   row: PickupBookingRow,
-  slotQueue: SlotQueueRow[] = []
+  slotQueue: SlotQueueRow[] = [],
+  currentUserId: string | null,
+  currentUserEmail: string | null
 ): LiveQueueItem | null => {
   if (!isActiveQueueStatus(row.status)) return null
 
-  const activeSlotQueue = slotQueue
-    .filter((item) => isActiveQueueStatus(item.status))
-    .sort(
-      (a, b) =>
-        getQueueIndex(a.queue_number ?? "-") - getQueueIndex(b.queue_number ?? "-")
-    )
+  const activeSlotQueue = buildUniqueSlotQueue(
+    slotQueue,
+    currentUserId,
+    currentUserEmail
+  )
+  const rowGroupingKey = getQueueGroupingKey(row, currentUserId, currentUserEmail)
   const queuePosition =
-    activeSlotQueue.findIndex((item) => item.pickup_code === row.pickup_code) + 1
+    activeSlotQueue.findIndex(
+      (item) =>
+        getQueueGroupingKey(item, currentUserId, currentUserEmail) ===
+        rowGroupingKey
+    ) + 1
   const normalizedPosition = queuePosition > 0 ? queuePosition : null
 
   return {
@@ -102,10 +177,14 @@ export function useLiveQueueStatus() {
   const [queueItems, setQueueItems] = useState<LiveQueueItem[]>([])
   const [peopleInQueue, setPeopleInQueue] = useState(0)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refreshQueue = useCallback(async (email?: string | null) => {
+  const refreshQueue = useCallback(async (
+    email?: string | null,
+    currentUserId?: string | null
+  ) => {
     setLoading(true)
     setError(null)
 
@@ -116,16 +195,35 @@ export function useLiveQueueStatus() {
       return
     }
 
-    const { data, error: queueError } = await supabase
+    const queueResult = await supabase
       .from("pickup_bookings")
       .select(
-        "pickup_code, pickup_date, time_slot, queue_number, customer_email, status, preparation_status, created_at, updated_at"
+        "id, user_id, pickup_code, pickup_date, time_slot, queue_number, customer_email, status, preparation_status, created_at, updated_at"
       )
       .eq("customer_email", email)
       .gte("pickup_date", getMalaysiaDateString())
       .in("status", [...ACTIVE_QUEUE_STATUSES])
       .order("pickup_date", { ascending: true })
       .order("time_slot", { ascending: true })
+
+    let data = queueResult.data as PickupBookingRow[] | null
+    let queueError = queueResult.error
+
+    if (queueError && isMissingUserIdColumnError(queueError.message)) {
+      const fallback = await supabase
+        .from("pickup_bookings")
+        .select(
+          "id, pickup_code, pickup_date, time_slot, queue_number, customer_email, status, preparation_status, created_at, updated_at"
+        )
+        .eq("customer_email", email)
+        .gte("pickup_date", getMalaysiaDateString())
+        .in("status", [...ACTIVE_QUEUE_STATUSES])
+        .order("pickup_date", { ascending: true })
+        .order("time_slot", { ascending: true })
+
+      data = fallback.data as PickupBookingRow[] | null
+      queueError = fallback.error
+    }
 
     if (queueError) {
       setError(queueError.message)
@@ -146,12 +244,27 @@ export function useLiveQueueStatus() {
     await Promise.all(
       slotKeys.map(async (key) => {
         const [pickupDate, timeSlot] = key.split("|||")
-        const { data: slotData, error: slotError } = await supabase
+        const slotResult = await supabase
           .from("pickup_bookings")
-          .select("pickup_code, queue_number, status")
+          .select("id, user_id, pickup_code, queue_number, customer_email, status, created_at, updated_at")
           .eq("pickup_date", pickupDate)
           .eq("time_slot", timeSlot)
           .in("status", [...ACTIVE_QUEUE_STATUSES])
+
+        let slotData = slotResult.data as SlotQueueRow[] | null
+        let slotError = slotResult.error
+
+        if (slotError && isMissingUserIdColumnError(slotError.message)) {
+          const fallback = await supabase
+            .from("pickup_bookings")
+            .select("id, pickup_code, queue_number, customer_email, status, created_at, updated_at")
+            .eq("pickup_date", pickupDate)
+            .eq("time_slot", timeSlot)
+            .in("status", [...ACTIVE_QUEUE_STATUSES])
+
+          slotData = fallback.data as SlotQueueRow[] | null
+          slotError = fallback.error
+        }
 
         if (slotError) {
           setError(slotError.message)
@@ -164,7 +277,14 @@ export function useLiveQueueStatus() {
     )
 
     const mapped = customerRows
-      .map((row) => mapQueueRow(row, slotQueues.get(`${row.pickup_date}|||${row.time_slot}`)))
+      .map((row) =>
+        mapQueueRow(
+          row,
+          slotQueues.get(`${row.pickup_date}|||${row.time_slot}`),
+          currentUserId ?? null,
+          email
+        )
+      )
       .filter((item): item is LiveQueueItem => Boolean(item))
 
     const sorted = sortQueueItems(mapped)
@@ -185,8 +305,10 @@ export function useLiveQueueStatus() {
       if (!active) return
 
       const email = user?.email ?? null
+      const currentUserId = user?.id ?? null
       setUserEmail(email)
-      await refreshQueue(email)
+      setUserId(currentUserId)
+      await refreshQueue(email, currentUserId)
 
       if (!email || !active) return
 
@@ -203,7 +325,7 @@ export function useLiveQueueStatus() {
             filter: `customer_email=eq.${safeEmail}`,
           },
           () => {
-            refreshQueue(email)
+            refreshQueue(email, currentUserId)
           }
         )
         .subscribe((status) => {
@@ -242,7 +364,7 @@ export function useLiveQueueStatus() {
             | undefined
 
           if (row?.time_slot && row.time_slot !== watchedTimeSlot) return
-          refreshQueue(userEmail)
+          refreshQueue(userEmail, userId)
         }
       )
       .subscribe((status) => {
@@ -254,7 +376,7 @@ export function useLiveQueueStatus() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [queueItems, refreshQueue, userEmail])
+  }, [queueItems, refreshQueue, userEmail, userId])
 
   const currentWaitMinutes =
     queueItems[0]?.estimatedWaitMinutes ??
@@ -266,8 +388,8 @@ export function useLiveQueueStatus() {
   )
 
   const refreshCurrentQueue = useCallback(
-    () => refreshQueue(userEmail),
-    [refreshQueue, userEmail]
+    () => refreshQueue(userEmail, userId),
+    [refreshQueue, userEmail, userId]
   )
 
   return {

@@ -16,7 +16,7 @@ export const PICKUP_TIME_SLOTS = [
   "18:00 - 19:00",
 ]
 
-export const ACTIVE_PICKUP_STATUSES = ["booked", "upcoming", "pending"]
+export const ACTIVE_PICKUP_STATUSES = ["booked", "upcoming", "pending", "checked_in"]
 
 export const getMalaysiaDateString = (date = new Date()) =>
   new Intl.DateTimeFormat("en-CA", {

@@ -142,49 +142,11 @@ const isAdminNotification = (item: Partial<AdminNotification>) =>
   item.role_target === "staff" ||
   (!item.user_id && item.audience !== "customer")
 
-const buildOperationalNotifications = (
-  parcels: AdminParcel[],
-  pickups: AdminPickupBooking[]
-): AdminNotification[] => {
-  const parcelAlerts = sortByNewest(parcels)
-    .slice(0, 8)
-    .map((parcel) => {
-      const trackingId = parcel.tracking_id ?? parcel.id
-      const status = parcel.status ?? "registered"
-
-      return normalizeAdminNotification({
-        id: `parcel-${parcel.id}-${parcel.updated_at ?? parcel.created_at ?? ""}`,
-        title: readyParcelStatuses.has(status)
-          ? "Parcel Ready to Pickup"
-          : completedParcelStatuses.has(status)
-            ? "Parcel Collected"
-            : "Parcel Status Updated",
-        message: `${trackingId} is ${toTitle(status)}${parcel.receiver ? ` for ${parcel.receiver}` : ""}.`,
-        type: "parcel_status",
-        related_id: trackingId,
-        created_at: parcel.updated_at ?? parcel.created_at ?? new Date().toISOString(),
-      })
-    })
-
-  const pickupAlerts = sortByNewest(pickups)
-    .slice(0, 8)
-    .map((pickup) =>
-      normalizeAdminNotification({
-        id: `pickup-${pickup.pickup_code}-${pickup.updated_at ?? pickup.created_at ?? ""}`,
-        title: cancelledStatuses.has(pickup.status ?? "")
-          ? "Pickup Booking Cancelled"
-          : "Pickup Booking Updated",
-        message: `${pickup.customer_name ?? "Customer"} ${toTitle(
-          pickup.status
-        ).toLowerCase()} ${pickup.queue_number ? `with queue ${pickup.queue_number}` : "a pickup booking"}.`,
-        type: cancelledStatuses.has(pickup.status ?? "") ? "booking_cancelled" : "queue_update",
-        related_id: pickup.pickup_code,
-        created_at: pickup.updated_at ?? pickup.created_at ?? new Date().toISOString(),
-      })
-    )
-
-  return sortByNewest([...parcelAlerts, ...pickupAlerts]).slice(0, 20)
-}
+const dedupeNotifications = (items: AdminNotification[]) =>
+  sortByNewest(items).filter(
+    (notification, index, all) =>
+      all.findIndex((item) => item.id === notification.id) === index
+  )
 
 export function useAdminRealtimeData({
   parcels: includeParcels = true,
@@ -243,16 +205,21 @@ export function useAdminRealtimeData({
     }
 
     if (includeNotifications) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       const adminNotifications = await supabase
         .from("notifications")
         .select("*")
-        .or("audience.in.(admin,staff),role_target.in.(admin,staff),user_id.is.null")
+        .or(
+          `user_id.eq.${user?.id ?? "00000000-0000-0000-0000-000000000000"},and(audience.in.(admin,staff),role_target.in.(admin,staff),user_id.is.null)`
+        )
         .order("created_at", { ascending: false })
         .limit(50)
 
       if (!adminNotifications.error) {
         setDbNotifications(
-          sortByNewest(
+          dedupeNotifications(
             (adminNotifications.data ?? [])
               .filter(isAdminNotification)
               .map(normalizeAdminNotification)
@@ -268,10 +235,10 @@ export function useAdminRealtimeData({
 
         if (!globalNotifications.error) {
           setDbNotifications(
-            sortByNewest(
-              (globalNotifications.data ?? [])
-                .filter(isAdminNotification)
-                .map(normalizeAdminNotification)
+              dedupeNotifications(
+                (globalNotifications.data ?? [])
+                  .filter(isAdminNotification)
+                  .map(normalizeAdminNotification)
             )
           )
         } else {
@@ -368,7 +335,7 @@ export function useAdminRealtimeData({
 
               setDbNotifications((prev) => {
                 const normalized = normalizeAdminNotification(nextNotification)
-                return sortByNewest([
+                return dedupeNotifications([
                   normalized,
                   ...prev.filter((item) => item.id !== normalized.id),
                 ])
@@ -385,17 +352,7 @@ export function useAdminRealtimeData({
     }
   }, [includeNotifications, includeParcels, includePickups, loadData])
 
-  const notifications = useMemo(
-    () =>
-      sortByNewest([
-        ...dbNotifications,
-        ...buildOperationalNotifications(parcels, pickups),
-      ]).filter(
-        (notification, index, items) =>
-          items.findIndex((item) => item.id === notification.id) === index
-      ),
-    [dbNotifications, parcels, pickups]
-  )
+  const notifications = useMemo(() => dedupeNotifications(dbNotifications), [dbNotifications])
 
   const markNotificationAsRead = useCallback(async (id: string) => {
     setDbNotifications((prev) =>
@@ -526,3 +483,4 @@ export const getAdminDashboardMetrics = (
     processingHours,
   }
 }
+

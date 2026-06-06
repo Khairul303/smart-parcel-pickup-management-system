@@ -26,6 +26,7 @@ import {
   type TimeFilterMode,
 } from "@/lib/malaysia-date-range"
 import { AdminTimeFilter } from "@/components/admin-time-filter"
+import supabase from "@/lib/supabase"
 
 // Import local components
 import { SummaryCard } from "./components/summary-card"
@@ -38,6 +39,7 @@ export default function PickupRecordsPage() {
   const {
     pickups,
     parcels,
+    reload,
   } = useAdminRealtimeData({ notifications: false })
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -159,6 +161,36 @@ export default function PickupRecordsPage() {
     setShowDetailsModal(true)
   }
 
+  const handleDeletePickupRecords = async (recordsToDelete: PickupRecord[]) => {
+    const pickupCodes = Array.from(new Set(recordsToDelete.map((record) => record.id)))
+
+    if (pickupCodes.length === 0) return false
+
+    const { error } = await supabase
+      .from("pickup_bookings")
+      .delete()
+      .in("pickup_code", pickupCodes)
+
+    if (error) {
+      console.error("Pickup record delete error:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
+      alert("Unable to delete the selected pickup record. Please try again.")
+      return false
+    }
+
+    await reload()
+    alert(
+      pickupCodes.length === 1
+        ? "Pickup record deleted successfully."
+        : "Selected pickup records deleted successfully."
+    )
+    return true
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -273,6 +305,7 @@ export default function PickupRecordsPage() {
             <PickupRecordsTable
               records={filteredRecords}
               onViewDetails={handleViewRecordDetails}
+              onDeleteRecords={handleDeletePickupRecords}
               stats={stats}
             />
           </div>

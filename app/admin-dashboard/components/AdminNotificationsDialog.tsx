@@ -32,6 +32,30 @@ const notificationConfig: Record<
     label: string
   }
 > = {
+  new_booking: {
+    icon: Clock,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+    label: "Booking",
+  },
+  queue_updated: {
+    icon: Clock,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+    label: "Queue",
+  },
+  parcel_status_updated: {
+    icon: Package,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    label: "Parcel",
+  },
+  parcel_collected: {
+    icon: Package,
+    color: "text-green-600",
+    bg: "bg-green-50",
+    label: "Collected",
+  },
   booking_cancelled: {
     icon: AlertTriangle,
     color: "text-red-600",

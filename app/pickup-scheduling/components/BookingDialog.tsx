@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
-import { NewPickupPayload } from "./PickupScheduling"
+import { BookingParcelEntry, NewPickupPayload } from "./PickupScheduling"
 import { PICKUP_STATUS } from "@/lib/pickup-status"
 import {
   ACTIVE_PICKUP_STATUSES,
@@ -39,6 +39,7 @@ interface Props {
     pickup: NewPickupPayload & {
       status: typeof PICKUP_STATUS.BOOKED
       trackingIds: string[]
+      bookingParcels: BookingParcelEntry[]
       estimatedMinutes: number
       estimatedWaitMinutes: number
     }
@@ -71,6 +72,16 @@ interface PreviewResult {
   available_quota?: number
 }
 
+interface ManualTrackingParcel {
+  parcel_id: string
+  tracking_id: string
+  courier?: string | null
+  current_status?: string | null
+  receiver_name?: string | null
+}
+
+type ManualTrackingValidationResult = ManualTrackingParcel | null
+
 const READY_PARCEL_STATUSES = new Set([
   "ready",
   "ready-for-pickup",
@@ -98,6 +109,11 @@ export function BookingDialog({
   const [availableQuota, setAvailableQuota] = useState<number | null>(null)
   const [selectedTrackingIds, setSelectedTrackingIds] = useState<string[]>([])
   const [manualTrackingId, setManualTrackingId] = useState("")
+  const [manualTrackingParcels, setManualTrackingParcels] = useState<
+    ManualTrackingParcel[]
+  >([])
+  const [manualTrackingMessage, setManualTrackingMessage] = useState<string | null>(null)
+  const [validatingManualTrackingId, setValidatingManualTrackingId] = useState(false)
   const [livePreviewKey, setLivePreviewKey] = useState(0)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [successSummary, setSuccessSummary] = useState<SuccessSummary | null>(null)
@@ -130,15 +146,50 @@ export function BookingDialog({
     () => availableParcels.map((parcel) => parcel.tracking_id),
     [availableParcels]
   )
-  const cleanTrackingIds = useMemo(() => {
-    const manual = manualTrackingId.trim()
-    return Array.from(
-      new Set([
-        ...selectedTrackingIds.map((id) => id.trim()).filter(Boolean),
-        ...(manual ? [manual] : []),
-      ])
+  const selectedRegisteredParcels = useMemo<BookingParcelEntry[]>(
+    () =>
+      selectedTrackingIds.reduce<BookingParcelEntry[]>((items, trackingId) => {
+          const parcel = availableParcels.find(
+            (item) => item.tracking_id.toLowerCase() === trackingId.toLowerCase()
+          )
+
+          if (!parcel?.id || !parcel.tracking_id) return items
+
+          return [
+            ...items,
+            {
+            parcelId: parcel.id,
+            trackingId: parcel.tracking_id.trim(),
+            source: "registered" as const,
+            },
+          ]
+        }, []),
+    [availableParcels, selectedTrackingIds]
+  )
+  const selectedManualParcels = useMemo<BookingParcelEntry[]>(
+    () =>
+      manualTrackingParcels.map((parcel) => ({
+        parcelId: parcel.parcel_id,
+        trackingId: parcel.tracking_id.trim(),
+        source: "manual",
+      })),
+    [manualTrackingParcels]
+  )
+  const bookingParcels = useMemo(() => {
+    const seen = new Set<string>()
+
+    return [...selectedRegisteredParcels, ...selectedManualParcels].filter(
+      (parcel) => {
+        const key = parcel.trackingId.toLowerCase()
+        if (!parcel.parcelId || !parcel.trackingId || seen.has(key)) return false
+        seen.add(key)
+        return true
+      }
     )
-  }, [manualTrackingId, selectedTrackingIds])
+  }, [selectedManualParcels, selectedRegisteredParcels])
+  const cleanTrackingIds = useMemo(() => {
+    return bookingParcels.map((parcel) => parcel.trackingId)
+  }, [bookingParcels])
   const parcelCount = getParcelCount(cleanTrackingIds, formData.parcelDetails)
   const estimatedMinutes = getEstimatedMinutes(parcelCount)
   const quotaError =
@@ -165,7 +216,7 @@ export function BookingDialog({
       if (!error && data) {
         setProfile(data)
       } else {
-        console.error("Failed to load profile:", error)
+        console.warn("Failed to load profile:", error)
       }
     }
 
@@ -308,32 +359,123 @@ export function BookingDialog({
     })
   }
 
+  const validateManualTrackingId = async (
+    trackingId: string,
+    currentTrackingIds: string[]
+  ): Promise<ManualTrackingValidationResult> => {
+    const cleanTrackingId = trackingId.trim()
+
+    if (!cleanTrackingId) return null
+
+    if (
+      currentTrackingIds.some(
+        (id) => id.toLowerCase() === cleanTrackingId.toLowerCase()
+      )
+    ) {
+      setSubmitError("This tracking ID has already been added to this booking.")
+      setManualTrackingMessage(null)
+      return null
+    }
+
+    setValidatingManualTrackingId(true)
+    setSubmitError(null)
+    setManualTrackingMessage(null)
+
+    const { data, error } = await supabase.rpc("validate_manual_tracking_id", {
+      p_tracking_id: cleanTrackingId,
+      p_current_tracking_ids: currentTrackingIds,
+    })
+
+    setValidatingManualTrackingId(false)
+
+    if (error) {
+      console.warn({
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
+      setSubmitError(error.message || "Tracking ID not found.")
+      return null
+    }
+
+    const parcel = Array.isArray(data) ? data[0] : data
+
+    if (!parcel?.tracking_id) {
+      setSubmitError("Tracking ID not found.")
+      return null
+    }
+
+    return parcel as ManualTrackingParcel
+  }
+
+  const handleAddManualTrackingId = async () => {
+    const currentTrackingIds = [
+      ...selectedTrackingIds,
+      ...manualTrackingParcels.map((parcel) => parcel.tracking_id),
+    ]
+    const parcel = await validateManualTrackingId(
+      manualTrackingId,
+      currentTrackingIds
+    )
+
+    if (!parcel) return
+
+    setManualTrackingParcels((prev) => [...prev, parcel])
+    setManualTrackingId("")
+    setManualTrackingMessage("Tracking ID added successfully.")
+  }
+
   const handleSubmit = async () => {
     if (!profile || !selectedDate || !selectedTimeSlot) {
       alert("Please complete required fields")
       return
     }
 
-    if (cleanTrackingIds.length === 0) {
-      setSubmitError("Select a registered tracking ID or enter one manually.")
-      return
-    }
+    let finalBookingParcels = bookingParcels
 
-    const manual = manualTrackingId.trim()
-    if (manual) {
-      const manualParcel = trackingParcels.find(
-        (parcel) => parcel.tracking_id.toLowerCase() === manual.toLowerCase()
+    if (manualTrackingId.trim()) {
+      const pendingManualParcel = await validateManualTrackingId(
+        manualTrackingId,
+        finalBookingParcels.map((parcel) => parcel.trackingId)
       )
 
-      if (!manualParcel) {
-        setSubmitError("Tracking ID was not found under your account.")
-        return
-      }
+      if (!pendingManualParcel) return
 
-      if (!READY_PARCEL_STATUSES.has((manualParcel.status ?? "").toLowerCase())) {
-        setSubmitError("This tracking ID is not available for pickup yet.")
-        return
-      }
+      finalBookingParcels = [
+        ...finalBookingParcels,
+        {
+          parcelId: pendingManualParcel.parcel_id,
+          trackingId: pendingManualParcel.tracking_id.trim(),
+          source: "manual",
+        },
+      ]
+    }
+
+    const normalizedBookingParcels = finalBookingParcels.reduce<BookingParcelEntry[]>(
+      (items, parcel) => {
+        const trackingId = parcel.trackingId.trim()
+        const key = trackingId.toLowerCase()
+
+        if (!parcel.parcelId || !trackingId) return items
+        if (items.some((item) => item.trackingId.toLowerCase() === key)) {
+          return items
+        }
+
+        return [...items, { ...parcel, trackingId }]
+      },
+      []
+    )
+    const finalTrackingIds = normalizedBookingParcels.map(
+      (parcel) => parcel.trackingId
+    )
+    const finalEstimatedMinutes = getEstimatedMinutes(
+      getParcelCount(finalTrackingIds, formData.parcelDetails)
+    )
+
+    if (finalTrackingIds.length === 0) {
+      setSubmitError("Please add at least one tracking ID before confirming the pickup.")
+      return
     }
 
     const latestQuota = await fetchLatestAvailableQuota()
@@ -351,9 +493,9 @@ export function BookingDialog({
 
     if (latestQuota !== null) setAvailableQuota(latestQuota)
 
-    if (latestQuota !== null && latestQuota < estimatedMinutes) {
+    if (latestQuota !== null && latestQuota < finalEstimatedMinutes) {
       showUnavailableNotice(
-        `This slot only has ${latestQuota} quota left, but your booking requires ${estimatedMinutes}.`
+        `This slot only has ${latestQuota} quota left, but your booking requires ${finalEstimatedMinutes}.`
       )
       return
     }
@@ -368,10 +510,11 @@ export function BookingDialog({
       pickupAddress: formData.pickupAddress,
       parcelDetails:
         formData.parcelDetails.trim() ||
-        `Tracking ID(s): ${cleanTrackingIds.join(", ")}`,
+        `Tracking ID(s): ${finalTrackingIds.join(", ")}`,
       specialInstructions: formData.specialInstructions,
-      trackingIds: cleanTrackingIds,
-      estimatedMinutes,
+      trackingIds: finalTrackingIds,
+      bookingParcels: normalizedBookingParcels,
+      estimatedMinutes: finalEstimatedMinutes,
       estimatedWaitMinutes,
     })
 
@@ -380,11 +523,13 @@ export function BookingDialog({
         pickupDate: selectedDate,
         timeSlot: selectedTimeSlot,
         queueNumber: queuePreview,
-        trackingIds: cleanTrackingIds,
+        trackingIds: finalTrackingIds,
         estimatedWaitMinutes,
       })
       setSelectedTrackingIds([])
       setManualTrackingId("")
+      setManualTrackingParcels([])
+      setManualTrackingMessage(null)
       setFormData((prev) => ({ ...prev, parcelDetails: "" }))
       onOpenChange(false)
     }
@@ -394,6 +539,8 @@ export function BookingDialog({
     if (!open) {
       setSelectedTrackingIds([])
       setManualTrackingId("")
+      setManualTrackingParcels([])
+      setManualTrackingMessage(null)
       setSubmitError(null)
       setNotice(null)
     }
@@ -475,9 +622,17 @@ export function BookingDialog({
                 variant="outline"
                 disabled={availableTrackingIds.length === 0}
                 onClick={() => {
+                  const manualTrackingIdSet = new Set(
+                    manualTrackingParcels.map((parcel) =>
+                      parcel.tracking_id.toLowerCase()
+                    )
+                  )
+                  const selectableTrackingIds = availableTrackingIds.filter(
+                    (id) => !manualTrackingIdSet.has(id.toLowerCase())
+                  )
                   const allSelected =
-                    selectedTrackingIds.length === availableTrackingIds.length
-                  setSelectedTrackingIds(allSelected ? [] : availableTrackingIds)
+                    selectedTrackingIds.length === selectableTrackingIds.length
+                  setSelectedTrackingIds(allSelected ? [] : selectableTrackingIds)
                   setSubmitError(null)
                 }}
               >
@@ -506,6 +661,19 @@ export function BookingDialog({
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(nextChecked) => {
+                          const alreadyAddedManually = manualTrackingParcels.some(
+                            (manualParcel) =>
+                              manualParcel.tracking_id.toLowerCase() ===
+                              parcel.tracking_id.toLowerCase()
+                          )
+
+                          if (nextChecked === true && alreadyAddedManually) {
+                            setSubmitError(
+                              "This tracking ID has already been added to this booking."
+                            )
+                            return
+                          }
+
                           setSelectedTrackingIds((prev) =>
                             nextChecked === true
                               ? Array.from(new Set([...prev, parcel.tracking_id]))
@@ -534,17 +702,68 @@ export function BookingDialog({
 
           <div className="space-y-2">
             <div className="text-sm font-medium">Or enter tracking ID manually</div>
-            <Input
-              placeholder="Enter tracking ID"
-              value={manualTrackingId}
-              onChange={(e) => {
-                setManualTrackingId(e.target.value)
-                setSubmitError(null)
-              }}
-            />
-            {selectedTrackingIds.length > 0 && manualTrackingId.trim() && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                placeholder="Enter tracking ID"
+                value={manualTrackingId}
+                onChange={(e) => {
+                  setManualTrackingId(e.target.value)
+                  setSubmitError(null)
+                  setManualTrackingMessage(null)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                    handleAddManualTrackingId()
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddManualTrackingId}
+                disabled={!manualTrackingId.trim() || validatingManualTrackingId}
+              >
+                {validatingManualTrackingId ? "Checking..." : "Add"}
+              </Button>
+            </div>
+            {manualTrackingMessage && (
+              <p className="text-sm text-green-600">{manualTrackingMessage}</p>
+            )}
+            {manualTrackingParcels.length > 0 && (
+              <div className="space-y-2 rounded-md border p-3">
+                {manualTrackingParcels.map((parcel) => (
+                  <div
+                    key={parcel.parcel_id}
+                    className="flex flex-col gap-2 rounded-md bg-gray-50 p-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="break-all font-medium">{parcel.tracking_id}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {parcel.courier ? `${parcel.courier} - ` : ""}
+                        {parcel.current_status ?? "Ready for pickup"}
+                        {parcel.receiver_name ? ` - Receiver: ${parcel.receiver_name}` : ""}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setManualTrackingParcels((prev) =>
+                          prev.filter((item) => item.parcel_id !== parcel.parcel_id)
+                        )
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {selectedTrackingIds.length > 0 && manualTrackingParcels.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                Selected parcels and the manual tracking ID will be combined.
+                Selected parcels and manual tracking IDs will be combined.
               </p>
             )}
           </div>
@@ -653,3 +872,4 @@ export function BookingDialog({
     </Dialog>
   )
 }
+

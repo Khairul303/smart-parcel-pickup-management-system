@@ -318,9 +318,9 @@ export default function PickupManagementPage() {
     })
 
     await createAdminNotification({
-      title: "Pickup Queue Updated",
-      message: `${pickup.queue_number} was marked as prepared${pickup.tracking_ids.length > 0 ? ` for ${pickup.tracking_ids.join(", ")}` : ""}.`,
-      type: "pickup_queue_updated",
+      title: "Queue Updated",
+      message: `Queue ${pickup.queue_number} has been updated to prepared.`,
+      type: "queue_updated",
       relatedId: pickup.id,
       relatedBookingId: pickup.id,
       relatedTrackingId: pickup.tracking_ids.join(", ") || null,
@@ -361,9 +361,9 @@ export default function PickupManagementPage() {
     })
 
     await createAdminNotification({
-      title: "Customer Checked In",
-      message: `${pickup.customer_name} checked in for ${pickup.queue_number}${pickup.tracking_ids.length > 0 ? ` (${pickup.tracking_ids.join(", ")})` : ""}.`,
-      type: "pickup_queue_updated",
+      title: "Queue Updated",
+      message: `Queue ${pickup.queue_number} has been updated to checked in.`,
+      type: "queue_updated",
       relatedId: pickup.id,
       relatedBookingId: pickup.id,
       relatedTrackingId: pickup.tracking_ids.join(", ") || null,
@@ -394,9 +394,9 @@ export default function PickupManagementPage() {
     })
 
     await createAdminNotification({
-      title: "Pickup Collected",
-      message: `${pickup.customer_name} collected ${pickup.tracking_ids.length > 0 ? pickup.tracking_ids.join(", ") : pickup.queue_number}.`,
-      type: "pickup_queue_updated",
+      title: "Parcel Collected",
+      message: `Parcel ${pickup.tracking_ids.length > 0 ? pickup.tracking_ids.join(", ") : pickup.queue_number} has been collected successfully by ${pickup.customer_name}.`,
+      type: "parcel_collected",
       relatedId: pickup.id,
       relatedBookingId: pickup.id,
       relatedTrackingId: pickup.tracking_ids.join(", ") || null,

@@ -180,6 +180,7 @@ export const NotificationsDialog = () => {
     error,
     markAsRead,
     markAllAsRead,
+    clearAllNotifications,
     deleteNotification,
     reload,
   } = useCustomerNotifications()
@@ -220,6 +221,16 @@ export const NotificationsDialog = () => {
                 onClick={markAllAsRead}
               >
                 Mark all read
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={notifications.length === 0}
+                onClick={clearAllNotifications}
+                className="gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear all
               </Button>
             </div>
           </div>

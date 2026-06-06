@@ -335,8 +335,8 @@ const handleScanSuccess = async (trackingId: string) => {
 
     await createAdminNotification({
       title: "Parcel Status Updated",
-      message: `${selectedParcel.tracking_id} is now ${parcelForm.status}.`,
-      type: "parcel_status",
+      message: `Parcel ${selectedParcel.tracking_id} status changed from ${selectedParcel.status} to ${parcelForm.status}.`,
+      type: "parcel_status_updated",
       relatedId: selectedParcel.tracking_id,
       relatedTrackingId: selectedParcel.tracking_id,
     });
@@ -382,7 +382,7 @@ const handleScanSuccess = async (trackingId: string) => {
 
     await createAdminNotification({
       title: "Parcel Registered",
-      message: `${trackingId} was registered for ${parcelForm.receiver}.`,
+      message: `Parcel ${trackingId} has been registered in the system.`,
       type: "parcel_registered",
       relatedId: trackingId,
       relatedTrackingId: trackingId,
@@ -399,9 +399,9 @@ const handleScanSuccess = async (trackingId: string) => {
       });
 
       await createAdminNotification({
-        title: "Parcel Ready to Pickup",
-        message: `${trackingId} is ready for pickup.`,
-        type: "parcel_status",
+        title: "Parcel Status Updated",
+        message: `Parcel ${trackingId} status changed to ready.`,
+        type: "parcel_status_updated",
         relatedId: trackingId,
         relatedTrackingId: trackingId,
       });
