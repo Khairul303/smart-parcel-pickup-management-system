@@ -20,6 +20,10 @@ import { Separator } from "@/components/ui/separator";
 
 import { ParcelTable } from "./components/ParcelTable";
 import { ParcelFormDialog } from "./components/ParcelFormDialog";
+import {
+  BulkParcelImportDialog,
+  type BulkParcelImportRow,
+} from "./components/BulkParcelImportDialog";
 import { StatusPanel } from "./components/StatusPanel";
 import { StatsPanel } from "./components/StatsPanel";
 import { RecentActivityPanel } from "./components/RecentActivityPanel";
@@ -28,7 +32,6 @@ import { Parcel, ParcelFormData } from "./components/types";
 import QrScanner from "./components/QrScanner";
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications";
 import { createAdminNotification } from "@/lib/admin-notifications";
-import { AdminNotificationButton } from "@/app/admin-dashboard/components";
 import { AdminTimeFilter } from "@/components/admin-time-filter";
 import {
   getMalaysiaDateInputValue,
@@ -46,7 +49,9 @@ export default function ParcelManagementPage() {
   const [isManualEntry, setIsManualEntry] = useState(false);
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilterMode>("daily");
@@ -63,7 +68,7 @@ export default function ParcelManagementPage() {
     weight: "",
     dimensions: "",
     priority: "Normal",
-    status: "pending",
+    status: "ready",
   });
 
 
@@ -252,7 +257,7 @@ const handleScanSuccess = async (trackingId: string) => {
       weight: parcel.weight ?? "",
       dimensions: parcel.dimensions ?? "",
       priority: parcel.priority ?? "Normal",
-      status: parcel.status ?? "pending",
+      status: parcel.status ?? "ready",
     });
     setFormError(null);
     setFormMessage(null);
@@ -275,7 +280,7 @@ const handleScanSuccess = async (trackingId: string) => {
       weight: "",
       dimensions: "",
       priority: "Normal",
-      status: "pending",
+      status: "ready",
     });
     setFormError(null);
     setFormMessage(null);
@@ -417,6 +422,78 @@ const handleScanSuccess = async (trackingId: string) => {
 
 
   /* 🗑 DELETE */
+  const handleBulkImport = async (rows: BulkParcelImportRow[]) => {
+    setIsBulkImporting(true);
+
+    const now = Date.now();
+    const rowsToInsert = rows.map((row, index) => {
+      const trackingId = row.trackingId || `PC-${now}-${index + 1}`;
+
+      return {
+        tracking_id: trackingId,
+        sender: row.sender,
+        receiver: row.receiver,
+        sender_phone: row.senderPhone,
+        receiver_phone: row.receiverPhone,
+        receiver_email: row.receiverEmail,
+        sender_address: row.senderAddress,
+        receiver_address: row.receiverAddress,
+        weight: row.weight || "-",
+        dimensions: row.dimensions || "-",
+        priority: row.priority,
+        status: row.status || "ready",
+      };
+    });
+
+    const { data, error } = await supabase
+      .from("parcels")
+      .insert(rowsToInsert)
+      .select();
+
+    if (error) {
+      setIsBulkImporting(false);
+      alert(error.message);
+      return;
+    }
+
+    if (data) {
+      setParcels((current) => [
+        ...(data as Parcel[]),
+        ...current.filter(
+          (parcel) =>
+            !data.some((created) => created.tracking_id === parcel.tracking_id)
+        ),
+      ]);
+    }
+
+    await Promise.allSettled(
+      rowsToInsert
+        .filter((row) => row.status === "ready")
+        .map((row) =>
+          createCustomerNotificationByContact({
+            email: row.receiver_email,
+            phone: row.receiver_phone,
+            title: "Parcel Ready to Pickup",
+            message: `Your parcel ${row.tracking_id} is ready for pickup.`,
+            type: "parcel_status",
+            relatedId: row.tracking_id,
+          })
+        )
+    );
+
+    await createAdminNotification({
+      title: "Bulk Parcel Import Completed",
+      message: `${rowsToInsert.length} parcels were registered from an uploaded file.`,
+      type: "parcel_registered",
+      relatedId: rowsToInsert[0]?.tracking_id ?? null,
+      relatedTrackingId: rowsToInsert[0]?.tracking_id ?? null,
+    });
+
+    setIsBulkImporting(false);
+    setIsBulkImportOpen(false);
+    alert(`${rowsToInsert.length} parcels imported successfully.`);
+  };
+
   const handleDeleteParcel = async (parcel: Parcel) => {
     if (!confirm("Delete this parcel?")) return;
     await supabase.from("parcels").delete().eq("id", parcel.id);
@@ -446,7 +523,6 @@ const handleScanSuccess = async (trackingId: string) => {
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <AdminNotificationButton />
         </header>
 
         {/* CONTENT */}
@@ -479,6 +555,7 @@ const handleScanSuccess = async (trackingId: string) => {
             <div className="min-w-0">
               <StatusPanel
                 onScanQR={handleScanQR}
+                onBulkImport={() => setIsBulkImportOpen(true)}
                 onManualEntry={handleManualEntry}
                 qrScanMode={qrScanMode}
                 scanResult={scanResult}
@@ -526,6 +603,12 @@ const handleScanSuccess = async (trackingId: string) => {
             isSaving={isSaving}
             message={formMessage}
             error={formError}
+          />
+          <BulkParcelImportDialog
+            isOpen={isBulkImportOpen}
+            onOpenChange={setIsBulkImportOpen}
+            onImport={handleBulkImport}
+            isImporting={isBulkImporting}
           />
         </main>
         {qrScanMode && (

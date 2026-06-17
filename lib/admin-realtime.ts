@@ -62,6 +62,26 @@ const cancelledStatuses = new Set(["cancelled", "canceled"])
 const activePickupStatuses = new Set(["booked", "upcoming", "checked_in"])
 const completedPickupStatuses = new Set(["completed", "collected"])
 
+const normalizeStatus = (value?: string | null) => (value ?? "").toLowerCase()
+
+const getPickupEstimatedMinutes = (pickup: AdminPickupBooking) => {
+  if (typeof pickup.estimated_minutes === "number" && pickup.estimated_minutes > 0) {
+    return pickup.estimated_minutes
+  }
+
+  const trackingCount = pickup.tracking_ids?.length ?? 1
+  return Math.min(Math.max(trackingCount, 1), 4)
+}
+
+const getScheduledPickupEndTime = (pickup: AdminPickupBooking) => {
+  if (!pickup.pickup_date || !pickup.time_slot?.includes(" - ")) return null
+
+  const slotEnd = pickup.time_slot.split(" - ")[1]
+  const timestamp = new Date(`${pickup.pickup_date}T${slotEnd}:00+08:00`).getTime()
+
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
 const sortByNewest = <T extends { created_at?: string | null; updated_at?: string | null }>(
   items: T[]
 ) =>
@@ -415,26 +435,62 @@ export const getAdminDashboardMetrics = (
   pickups: AdminPickupBooking[]
 ) => {
   const completedParcels = parcels.filter((parcel) =>
-    completedParcelStatuses.has(parcel.status ?? "")
+    completedParcelStatuses.has(normalizeStatus(parcel.status))
   ).length
   const readyParcels = parcels.filter((parcel) =>
-    readyParcelStatuses.has(parcel.status ?? "")
+    readyParcelStatuses.has(normalizeStatus(parcel.status))
   ).length
   const completedPickups = pickups.filter((pickup) =>
-    completedPickupStatuses.has(pickup.status ?? "")
+    completedPickupStatuses.has(normalizeStatus(pickup.status))
   ).length
   const cancelledPickups = pickups.filter((pickup) =>
-    cancelledStatuses.has(pickup.status ?? "")
+    cancelledStatuses.has(normalizeStatus(pickup.status))
   ).length
   const activePickups = pickups.filter((pickup) =>
-    activePickupStatuses.has(pickup.status ?? "")
+    activePickupStatuses.has(normalizeStatus(pickup.status))
   ).length
+  const validPickups = pickups.filter(
+    (pickup) =>
+      !cancelledStatuses.has(normalizeStatus(pickup.status)) &&
+      normalizeStatus(pickup.status) !== "no_show"
+  )
+  const pickupRate =
+    validPickups.length > 0
+      ? Math.round((completedPickups / validPickups.length) * 100)
+      : 0
+  const averagePreparationMinutes =
+    validPickups.length > 0
+      ? validPickups.reduce(
+          (total, pickup) => total + getPickupEstimatedMinutes(pickup),
+          0
+        ) / validPickups.length
+      : 0
+  const preparationSpeedProgress = Math.max(
+    0,
+    Math.min(100, Math.round(100 - (averagePreparationMinutes / 4) * 100))
+  )
+  const scheduledCompletedPickups = pickups.filter(
+    (pickup) =>
+      completedPickupStatuses.has(normalizeStatus(pickup.status)) &&
+      pickup.updated_at &&
+      getScheduledPickupEndTime(pickup) !== null
+  )
+  const onTimeCompletedPickups = scheduledCompletedPickups.filter((pickup) => {
+    const completedAt = new Date(pickup.updated_at as string).getTime()
+    const scheduledEnd = getScheduledPickupEndTime(pickup)
+
+    return scheduledEnd !== null && !Number.isNaN(completedAt) && completedAt <= scheduledEnd
+  }).length
+  const onTimePickupRate =
+    scheduledCompletedPickups.length > 0
+      ? Math.round((onTimeCompletedPickups / scheduledCompletedPickups.length) * 100)
+      : 0
   const successRate =
     pickups.length > 0 ? Math.round((completedPickups / pickups.length) * 100) : 0
   const noShowRate =
     pickups.length > 0
       ? Math.round(
-          (pickups.filter((pickup) => pickup.status === "no_show").length /
+          (pickups.filter((pickup) => normalizeStatus(pickup.status) === "no_show").length /
             pickups.length) *
             100
         )
@@ -444,7 +500,7 @@ export const getAdminDashboardMetrics = (
       ? parcels
           .filter(
             (parcel) =>
-              completedParcelStatuses.has(parcel.status ?? "") &&
+              completedParcelStatuses.has(normalizeStatus(parcel.status)) &&
               parcel.created_at &&
               parcel.updated_at
           )
@@ -460,12 +516,16 @@ export const getAdminDashboardMetrics = (
     readyParcels,
     completedParcels,
     cancelledParcels: parcels.filter((parcel) =>
-      cancelledStatuses.has(parcel.status ?? "")
+      cancelledStatuses.has(normalizeStatus(parcel.status))
     ).length,
     totalPickups: pickups.length,
     activePickups,
     completedPickups,
     cancelledPickups,
+    pickupRate,
+    averagePreparationMinutes,
+    preparationSpeedProgress,
+    onTimePickupRate,
     successRate,
     noShowRate,
     queueEfficiency:
@@ -475,7 +535,7 @@ export const getAdminDashboardMetrics = (
     onTimeRate:
       pickups.length > 0
         ? Math.round(
-            (pickups.filter((pickup) => pickup.status !== "no_show").length /
+            (pickups.filter((pickup) => normalizeStatus(pickup.status) !== "no_show").length /
               pickups.length) *
               100
           )

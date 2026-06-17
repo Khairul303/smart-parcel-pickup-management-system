@@ -15,41 +15,42 @@ export function PerformanceMetricsSection({
   loading?: boolean;
 }) {
   const metrics = getAdminDashboardMetrics(parcels, pickups);
-  const processingLabel =
-    metrics.processingHours > 0 ? `${metrics.processingHours.toFixed(1)}h avg` : "0h avg";
-  const processingProgress = Math.max(0, Math.min(100, 100 - metrics.processingHours * 8));
+  const preparationLabel =
+    metrics.averagePreparationMinutes > 0
+      ? `${metrics.averagePreparationMinutes.toFixed(1)}m avg`
+      : "0m avg";
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Performance Metrics</CardTitle>
-        <CardDescription>Delivery success rate & efficiency</CardDescription>
+        <CardDescription>Pickup readiness and collection efficiency</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">On-time Delivery</span>
-            <span className="text-sm font-medium">{loading ? "..." : `${metrics.onTimeRate}%`}</span>
+            <span className="text-sm font-medium">Pickup Rate</span>
+            <span className="text-sm font-medium">{loading ? "..." : `${metrics.pickupRate}%`}</span>
           </div>
-          <Progress value={metrics.onTimeRate} className="h-2" />
+          <Progress value={metrics.pickupRate} className="h-2" />
         </div>
         
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Customer Satisfaction</span>
+            <span className="text-sm font-medium">Preparation Speed</span>
+            <span className="text-sm font-medium">{loading ? "..." : preparationLabel}</span>
+          </div>
+          <Progress value={metrics.preparationSpeedProgress} className="h-2" />
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">On-time Pickup</span>
             <span className="text-sm font-medium">
-              {loading ? "..." : `${Math.max(0, (5 - metrics.noShowRate / 20)).toFixed(1)}/5`}
+              {loading ? "..." : `${metrics.onTimePickupRate}%`}
             </span>
           </div>
-          <Progress value={Math.max(0, 100 - metrics.noShowRate)} className="h-2" />
-        </div>
-        
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Processing Speed</span>
-            <span className="text-sm font-medium">{loading ? "..." : processingLabel}</span>
-          </div>
-          <Progress value={processingProgress} className="h-2" />
+          <Progress value={metrics.onTimePickupRate} className="h-2" />
         </div>
       </CardContent>
     </Card>

@@ -22,6 +22,12 @@ export type PickupStatus =
   | "no_show"
   | "cancelled"
 
+export const getPickupStatusFilterValue = (status: PickupStatus | string) => {
+  if (status === "booked") return "upcoming"
+  if (status === "completed") return "collected"
+  return status
+}
+
 /* =========================
    PREPARATION STATUS
 ========================= */
@@ -114,7 +120,7 @@ export const statusConfig: Record<
   },
 
   completed: {
-    label: "Completed",
+    label: "Collected",
     variant: "outline",
     icon: <CheckCircle className="h-3 w-3 mr-1" />,
     colorClass: "text-purple-700 border-purple-300",

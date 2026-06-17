@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type React from "react"
 import { LabelList } from "recharts"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -28,7 +28,7 @@ import {
   Activity,
   FileText,
   Eye,
-  Share2,
+  Download,
   RefreshCw,
   CheckCircle as CheckCircleIcon,
 } from "lucide-react"
@@ -78,7 +78,6 @@ import {
 import { getEstimatedMinutes, SLOT_QUOTA_UNITS } from "@/lib/pickup-scheduling"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 
 const chartColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
 
@@ -112,6 +111,7 @@ type RecentGeneratedReport = {
   generatedAt: string
   rangeLabel: string
   fileName: string
+  objectUrl: string
 }
 
 export default function ReportAnalyticsPage() {
@@ -119,6 +119,7 @@ export default function ReportAnalyticsPage() {
   const [generating, setGenerating] = useState(false)
   const [recentReports, setRecentReports] = useState<RecentGeneratedReport[]>([])
   const [reportNow] = useState(() => Date.now())
+  const reportObjectUrlsRef = useRef<Set<string>>(new Set())
   const adminData = useAdminRealtimeData({ notifications: false })
   const { parcels, pickups, loading, error } = adminData
   const metrics = getAdminDashboardMetrics(parcels, pickups)
@@ -450,6 +451,28 @@ export default function ReportAnalyticsPage() {
       ? pickupTrendData
       : [{ month: "No data", bookings: 0, collected: 0 }]
 
+  useEffect(() => {
+    const reportObjectUrls = reportObjectUrlsRef.current
+
+    return () => {
+      reportObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl))
+      reportObjectUrls.clear()
+    }
+  }, [])
+
+  const handleViewReport = (report: RecentGeneratedReport) => {
+    window.open(report.objectUrl, "_blank", "noopener,noreferrer")
+  }
+
+  const handleDownloadReport = (report: RecentGeneratedReport) => {
+    const link = document.createElement("a")
+    link.href = report.objectUrl
+    link.download = report.fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   const handleGenerateReport = () => {
     try {
       setGenerating(true)
@@ -547,18 +570,32 @@ export default function ReportAnalyticsPage() {
         styles: { fontSize: 8 },
       })
 
-      const fileName = `pickup-analytics-${dateRange}-${new Date().toISOString().slice(0, 10)}.pdf`
+      const generatedAt = new Date().toISOString()
+      const fileName = `pickup-analytics-${dateRange}-${generatedAt.slice(0, 10)}.pdf`
+      const objectUrl = URL.createObjectURL(doc.output("blob"))
+      reportObjectUrlsRef.current.add(objectUrl)
+
       doc.save(fileName)
-      setRecentReports((current) => [
-        {
-          name: "Pickup Analytics Report",
-          type: "PDF",
-          generatedAt: new Date().toISOString(),
-          rangeLabel,
-          fileName,
-        },
-        ...current,
-      ].slice(0, 5))
+      setRecentReports((current) => {
+        const next = [
+          {
+            name: "Pickup Analytics Report",
+            type: "PDF",
+            generatedAt,
+            rangeLabel,
+            fileName,
+            objectUrl,
+          },
+          ...current,
+        ]
+        const visibleReports = next.slice(0, 5)
+        next.slice(5).forEach((report) => {
+          URL.revokeObjectURL(report.objectUrl)
+          reportObjectUrlsRef.current.delete(report.objectUrl)
+        })
+
+        return visibleReports
+      })
     } catch (reportError) {
       alert(reportError instanceof Error ? reportError.message : "Unable to generate PDF report.")
     } finally {
@@ -586,7 +623,6 @@ export default function ReportAnalyticsPage() {
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <AdminNotificationButton />
         </header>
 
         <main className="min-w-0 space-y-6 p-4 md:p-6">
@@ -1020,11 +1056,21 @@ export default function ReportAnalyticsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" title="Generated PDF was downloaded when created">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      title="View generated PDF"
+                      onClick={() => handleViewReport(report)}
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="outline" title="Share is unavailable for session-only reports" disabled>
-                      <Share2 className="h-4 w-4" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      title="Download generated PDF"
+                      onClick={() => handleDownloadReport(report)}
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

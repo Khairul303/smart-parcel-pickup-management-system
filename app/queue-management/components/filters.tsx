@@ -2,10 +2,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Filter } from "lucide-react"
-import { statusConfig } from "../types"
+import { getPickupStatusFilterValue, statusConfig } from "../types"
 
 const visibleStatusFilters = Object.entries(statusConfig).filter(
-  ([status]) => status !== "no_show"
+  ([status], index, entries) =>
+    status !== "no_show" &&
+    entries.findIndex(
+      ([entryStatus]) =>
+        getPickupStatusFilterValue(entryStatus) === getPickupStatusFilterValue(status)
+    ) === index
 )
 
 interface FiltersProps {
@@ -47,7 +52,7 @@ export function Filters({
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 {visibleStatusFilters.map(([status, config]) => (
-                  <SelectItem key={status} value={status}>
+                  <SelectItem key={status} value={getPickupStatusFilterValue(status)}>
                     <div className="flex items-center">
                       {config.icon}
                       {config.label}

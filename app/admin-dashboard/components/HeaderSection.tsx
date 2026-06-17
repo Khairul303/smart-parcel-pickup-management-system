@@ -10,11 +10,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { AdminNotificationButton } from "./AdminNotificationButton";
 
 export function HeaderSection() {
   return (
-    <header className="sticky top-0 z-40 flex min-h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-3 py-2 sm:px-4 md:px-6">
+    <header className="sticky top-0 z-40 flex min-h-16 shrink-0 items-center gap-2 border-b bg-background px-3 py-2 sm:px-4 md:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-4">
         <SidebarTrigger className="-ml-2" />
         <Separator orientation="vertical" className="mr-2 hidden h-6 sm:block" />
@@ -29,10 +28,6 @@ export function HeaderSection() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-      </div>
-      
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <AdminNotificationButton />
       </div>
     </header>
   );

@@ -78,7 +78,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-linear-to-b from-gray-50 to-white">
       {/* Navigation */}
       <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4">
@@ -140,7 +140,7 @@ export default function HomePage() {
         </div>
 
         {/* How it Works */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-8 mb-16">
+        <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-8 mb-16">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">How It Works</h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
@@ -215,7 +215,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-linear-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
                 <Package className="h-4 w-4 text-white" />
               </div>
               <div>

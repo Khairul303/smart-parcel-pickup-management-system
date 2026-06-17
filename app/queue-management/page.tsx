@@ -30,14 +30,13 @@ import {
   CheckCircle,
 } from "lucide-react"
 
-import { Pickup, AVERAGE_HANDLING_TIME } from "./types"
+import { AVERAGE_HANDLING_TIME, getPickupStatusFilterValue, Pickup } from "./types"
 import { SummaryCard } from "./components/summary-card"
 import { Filters } from "./components/filters"
 import { PickupList } from "./components/pickup-list"
 import { QueueStats } from "./components/queue-stats"
 import { createCustomerNotificationByContact } from "@/lib/customer-notifications"
 import { createAdminNotification } from "@/lib/admin-notifications"
-import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 
 /* =====================
    DB ROW TYPE
@@ -264,7 +263,7 @@ export default function PickupManagementPage() {
       )
 
     const matchesStatus =
-      statusFilter === "all" || p.status === statusFilter
+      statusFilter === "all" || getPickupStatusFilterValue(p.status) === statusFilter
 
     return matchesSearch && matchesStatus
   })
@@ -436,7 +435,6 @@ export default function PickupManagementPage() {
             </Breadcrumb>
           </div>
 
-          <AdminNotificationButton />
         </header>
 
         {/* CONTENT */}

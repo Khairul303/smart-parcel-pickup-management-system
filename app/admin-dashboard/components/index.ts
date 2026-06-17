@@ -1,5 +1,4 @@
 export { HeaderSection } from './HeaderSection';
-export { AdminNotificationButton } from './AdminNotificationButton';
 export { WelcomeSection } from './WelcomeSection';
 export { SearchFilterSection } from './SearchFilterSection';
 export { StatsSection } from './StatsSection';

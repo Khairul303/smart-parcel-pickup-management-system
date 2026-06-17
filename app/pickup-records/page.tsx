@@ -33,7 +33,6 @@ import { SummaryCard } from "./components/summary-card"
 import { Filters } from "./components/filters"
 import { PickupRecordsTable } from "./components/pickup-records-table"
 import { RecordDetailsModal } from "./components/record-details-modal"
-import { AdminNotificationButton } from "@/app/admin-dashboard/components"
 
 export default function PickupRecordsPage() {
   const {
@@ -216,9 +215,6 @@ export default function PickupRecordsPage() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <AdminNotificationButton />
           </div>
         </header>
 

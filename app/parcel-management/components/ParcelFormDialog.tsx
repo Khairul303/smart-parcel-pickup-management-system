@@ -163,7 +163,7 @@ export function ParcelFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Not Collected</SelectItem>
-                  <SelectItem value="ready">Ready for Pickup</SelectItem>
+                  <SelectItem value="ready">Ready to Pickup</SelectItem>
                   <SelectItem value="delivered">Collected</SelectItem>
                 </SelectContent>
               </Select>

@@ -7,10 +7,12 @@ import {
   Camera,
   Edit,
   UserPlus,
+  Upload,
 } from "lucide-react";
 
 interface StatusPanelProps {
   onScanQR: () => void;
+  onBulkImport: () => void;
   onManualEntry: () => void;
   qrScanMode: boolean;
   scanResult: string;
@@ -19,6 +21,7 @@ interface StatusPanelProps {
 
 export function StatusPanel({
   onScanQR,
+  onBulkImport,
   onManualEntry,
   qrScanMode,
 }: StatusPanelProps) {
@@ -51,6 +54,26 @@ export function StatusPanel({
           >
             <Camera className="h-4 w-4 mr-1" />
             Scan
+          </Button>
+        </div>
+
+        {/* Bulk Import */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-50 rounded-lg">
+              <Upload className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Bulk Parcel Creation</h3>
+              <p className="text-sm text-gray-600">
+                Upload Excel file for many parcels
+              </p>
+            </div>
+          </div>
+
+          <Button variant="outline" onClick={onBulkImport}>
+            <Upload className="h-4 w-4 mr-1" />
+            Upload
           </Button>
         </div>
 

@@ -19,7 +19,7 @@ export const statusConfig = {
     color: "bg-green-50 text-green-700 border-green-200",
   },
   ready: {
-    label: "Ready for Pickup",
+    label: "Ready to Pickup",
     icon: Package,
     color: "bg-purple-50 text-purple-700 border-purple-200",
   },

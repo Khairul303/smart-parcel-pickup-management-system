@@ -1,0 +1,16 @@
+
+> smart-parcel-pickup-management-system@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.1.1 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.29:3000
+- Environments: .env.local
+
+✓ Starting...
+> [PWA] PWA support is disabled
+> [PWA] PWA support is disabled
+✓ Ready in 4.7s
+○ Compiling / ...
+ GET / 200 in 8.3s (compile: 7.8s, render: 444ms)
+[?25h
